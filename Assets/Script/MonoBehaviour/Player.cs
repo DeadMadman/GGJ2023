@@ -10,7 +10,6 @@ public class Player : MonoBehaviour
     {
         public override void Bake(Player authoring)
         {
-          
             AddComponent<Movement>();
             AddComponent<LocalTransform>();
             AddComponent<ParentTransform>();
