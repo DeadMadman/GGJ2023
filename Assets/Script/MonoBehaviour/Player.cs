@@ -6,14 +6,23 @@ using UnityEngine;
 
 public class Player : MonoBehaviour
 {
+    [SerializeField] private Mesh mesh;
+    [SerializeField] private Material material;
+
+    public Mesh Mesh => mesh;
+    public Material Material => material;
+
+
+
     public class Baker : Baker<Player>
     {
         public override void Bake(Player authoring)
         {
             AddComponent<Movement>();
-            AddComponent<LocalTransform>();
-            AddComponent<ParentTransform>();
-            AddComponent<WorldTransform>();
+            AddComponentObject(new Visuals { mesh = authoring.Mesh, material = authoring.Material });
+            //AddComponent<LocalTransform>();
+            //AddComponent<ParentTransform>();
+            //AddComponent<WorldTransform>();
         }
     }
     // Start is called before the first frame update
@@ -29,22 +38,3 @@ public class Player : MonoBehaviour
     }
 }
 
-
-[WorldSystemFilter(WorldSystemFilterFlags.BakingSystem)]
-public partial struct PlayerBakingSystem : ISystem
-{
-    public void OnCreate(ref SystemState state)
-    {   
-        
-    }
-
-    public void OnDestroy(ref SystemState state)
-    {
-
-    }
-
-    public void OnUpdate(ref SystemState state)
-    {
-
-    }
-}
