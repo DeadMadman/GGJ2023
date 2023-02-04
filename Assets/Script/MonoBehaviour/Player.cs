@@ -6,8 +6,9 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Scenes;
 using Unity.Transforms;
-using UnityEditor.PackageManager;
 using UnityEngine;
+using static UnityEngine.ParticleSystem;
+using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 
 public class Player : MonoBehaviour
 {
@@ -21,17 +22,7 @@ public class Player : MonoBehaviour
 
     private Entity entity;
 
-    private void OnDrawGizmos()
-    {
-        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        var query = manager.CreateEntityQuery(typeof(LocalToWorld), typeof(Look));
-        var looks = query.ToComponentDataArray<Look>(Allocator.Temp);
-        var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
-        Gizmos.color = Color.red;
-        foreach(var index in Enumerable.Range(0, query.CalculateEntityCount())) {
-            Gizmos.DrawLine(transforms[index].Position, transforms[index].Position + (looks[index].value * 3.0f));
-        }
-    }
+
 
     private void Update()
     {
@@ -59,12 +50,12 @@ public class Player : MonoBehaviour
         manager.AddComponent<Input>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 1.25f, range = 2.5f, angle = 180.0f });
         manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
         manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
         manager.AddComponentData(entity, new Look { value = transform.forward });
         manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
-        manager.AddComponentData(entity, new PlantableTree { prefab = treePrefab });
+        manager.AddComponentData(entity, new PlantableTree { entity = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntity() });
     }
 
     //public class Baker : Baker<Player>
@@ -116,7 +107,7 @@ public partial struct VelocityToAnimatorSystem : ISystem
         foreach (var (visuals, input) in SystemAPI.Query<Anim, Input>()) {
             var anim = visuals.animator;
             anim.SetFloat("lookx", input.movement.x);
-            anim.SetFloat("looky", input.movement.y);
+            anim.SetFloat("looky", input.movement.z);
         }
     }
 
@@ -288,7 +279,7 @@ public partial struct InputToAttackSystem : ISystem
         var particles = ParticleSystemManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackVFX>>().WithNone<Attacking>().WithEntityAccess()) {
+        foreach (var (velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackVFX>>().WithNone<Dodging, Attacking>().WithEntityAccess()) {
             var time = attack.ValueRO.time - dt;
             var att = attack.ValueRO;
             ref var attackVfx = ref vfx.ValueRW;
@@ -316,17 +307,18 @@ public partial struct OnHitSystem : ISystem
         var particles = ParticleSystemManager.Instance;
         foreach(var (transform, attackable, handle) in SystemAPI.Query<LocalToWorld, Attackable, RefRW<HitVFX>>()) {
             if(attackable.JustAttacked) {
-                Debug.Log("Start");
-                handle.ValueRW.handle = particles.Play(handle.ValueRW.vfxName.Value, transform.Position, transform.Rotation);
-            }
-            else if(attackable.StoppedAttacked){
-                Debug.Log("End");
-                particles.Stop(handle.ValueRW.handle);
-            }
+     
+                particles.PlayOnce(handle.ValueRW.vfxName.Value, transform.Position + math.float3(0.0f, 0.5f, 0.0f), transform.Rotation);
 
-            if(attackable.IsAttacked) {
-                Debug.Log("Attack");
             }
+            //else if(attackable.StoppedAttacked){
+            //    Debug.Log("End");
+            //    particles.Stop(handle.ValueRW.handle);
+            //}
+
+            //if(attackable.IsAttacked) {
+            //    Debug.Log("Attack");
+            //}
         }
     }
 }
@@ -406,16 +398,16 @@ public partial struct InputToDodgeSystem : ISystem
     {
         var dt = SystemAPI.Time.DeltaTime;
 
-        var particle = ParticleSystemManager.Instance;
+        var particles = ParticleSystemManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Anim, LocalToWorld>().WithNone<Dodging>().WithEntityAccess()) {
+        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Anim, LocalToWorld>().WithNone<Dodging, Attacking>().WithEntityAccess()) {
             var time = dodge.ValueRO.time - dt;
             if(time <= 0.0f && input.justDodged) {
                 dodge.ValueRW.time += dodge.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Dodging { time = dodge.ValueRO.dodgeTime });
-
-                visuals.animator.SetBool("dodge", true);
+                particles.PlayOnce("Electro", transform.Position + math.float3(0.0f, 0.5f, 0.0f), transform.Rotation);
+                visuals.animator.SetBool("dodge", true); 
             }
             dodge.ValueRW.time = math.max(time, 0.0f);
         }
@@ -436,12 +428,13 @@ public partial struct DodgingSystem : ISystem
         foreach (var (dodge, look, velocity) in SystemAPI.Query<Dodge, Look, RefRW<Velocity>>().WithAll<Dodging>()) {
             velocity.ValueRW.value = look.value * dodge.dodgeSpeed;
         }
+        var particles = ParticleSystemManager.Instance;
 
-        foreach (var (dodging, visuals, entity) in SystemAPI.Query<RefRW<Dodging>, Anim>().WithEntityAccess()) {
+        foreach (var (transform, dodging, visuals, entity) in SystemAPI.Query<LocalToWorld, RefRW<Dodging>, Anim>().WithEntityAccess()) {
             var time = dodging.ValueRO.time - dt;
             if (time <= 0.0f) {
                 entities.Add(entity);
-
+                particles.PlayOnce("KABOOM", transform.Position + math.float3(0.0f, 0.5f, 0.0f), transform.Rotation);
 
                 visuals.animator.SetBool("dodge", false);
             }
@@ -464,12 +457,12 @@ public partial struct PlantingSystem : ISystem
         foreach (var (input, plantingPosition, tree) in SystemAPI.Query<Input, RefRO<LocalTransform>, PlantableTree>())
 		{
             if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
-			{
-                GameObject newTree = LevelManager.Instantiate(tree.prefab);
-                Vector3 pos = plantingPosition.ValueRO.Position;
+            {
+                float3 pos = plantingPosition.ValueRO.Position;
                 pos.y = 0.5f;
-                newTree.transform.position = pos;
-
+                Entity newTree = state.EntityManager.Instantiate(tree.entity);
+                // It says that the new entity doesn't have a LocalTransform, this was not an issue before.
+                state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
 			}
 		}
     }
