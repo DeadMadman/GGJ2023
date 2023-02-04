@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Entities;
+using Unity.Transforms;
 using UnityEngine;
 
 public class PlantedTree : MonoBehaviour
@@ -32,17 +33,20 @@ public class PlantedTree : MonoBehaviour
         }
     }
 
-    [SerializeField] private float exclusionRadius;
-    [SerializeField] private float timeTillFullyGrown;
+    [SerializeField] public float exclusionRadius;
+    [SerializeField] public float timeTillFullyGrown;
+}
 
-    public class Baker : Baker<PlantedTree>
-	{
-        public override void Bake(PlantedTree authoring)
-		{
-            AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
-            AddComponent(new GrowthComponent { /*exclusionRadius = authoring.exclusionRadius,*/ growthSpeedMultiplier = 1, timeTillFullyGrown = authoring.timeTillFullyGrown });
-        }
-	}
+public class Baker : Baker<PlantedTree>
+{
+    public override void Bake(PlantedTree authoring)
+    {
+        Debug.Log("We got that dog in us");
+        AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
+        AddComponent(new LocalTransform { Position = authoring.transform.position, Rotation = authoring.transform.rotation, Scale = 1 });
+        AddComponent(new GrowthComponent { exclusionRadius = authoring.exclusionRadius, growthSpeedMultiplier = 1, timeTillFullyGrown = authoring.timeTillFullyGrown });
+        authoring.transform.localScale = new Vector3(0, 0, 0);
+    }
 }
 
 public partial struct GrowthSystem : ISystem
@@ -54,10 +58,12 @@ public partial struct GrowthSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var dt = SystemAPI.Time.DeltaTime;
-        foreach (var tree in SystemAPI.Query<RefRW<GrowthComponent>>())
+        foreach (var (tree, transform) in SystemAPI.Query<RefRW<GrowthComponent>, LocalTransform>())
         {
-            tree.ValueRW.timeTillFullyGrown -= dt * tree.ValueRO.growthSpeedMultiplier;
-            // if timeTillFullyGrown == 0 then tree should become fully growns
+            if (tree.ValueRO.timeTillFullyGrown > 0)
+                tree.ValueRW.timeTillFullyGrown -= dt * tree.ValueRO.growthSpeedMultiplier;
+            float sizeMultiplier = 1 - tree.ValueRO.timeTillFullyGrown;
+            transform.ApplyScale(10000000);
         }
     }
 }
