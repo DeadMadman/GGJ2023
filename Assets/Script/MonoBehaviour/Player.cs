@@ -16,12 +16,12 @@ public class Player : MonoBehaviour
 
     public MeshFilter MeshFilter
     {
-        get 
-        { 
-            if(meshFilter == null) {
+        get
+        {
+            if (meshFilter == null) {
                 meshFilter = GetComponent<MeshFilter>();
             }
-            return meshFilter; 
+            return meshFilter;
         }
     }
 
@@ -40,6 +40,8 @@ public class Player : MonoBehaviour
     [SerializeField] private float dodgeTime;
     [SerializeField] private float dodgeSpeed;
     [SerializeField] private float dodgeCooldown;
+
+    [SerializeField] private GameObject treePrefab;
 
     
 
@@ -84,6 +86,8 @@ public class Player : MonoBehaviour
             AddComponent(new WalkingVFX { vfxName = "Walking" });
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
+            
+            AddComponentObject(new PlantableTree { prefab = authoring.treePrefab });
         }
     }
 }
@@ -137,20 +141,24 @@ public partial struct UpdateVisuals : ISystem
 }
 
 
-//public partial struct UpdateTransformContext : ISystem
-//{
-//    public void OnCreate(ref SystemState state) { }
+public partial struct KeepInBoundsSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
 
-//    public void OnDestroy(ref SystemState state) { }
+    public void OnDestroy(ref SystemState state) { }
 
-//    public void OnUpdate(ref SystemState state)
-//    {
-//        foreach (var (context, transform) in SystemAPI.Query<TransformContext, LocalToWorld>()) {
-//            context.transform.localPosition = transform.Position;
-//            context.transform.localRotation = transform.Rotation;
-//        }
-//    }
-//}
+    public void OnUpdate(ref SystemState state)
+    {
+        var level = LevelManager.Instance;
+        var bounds = level.Bounds;
+
+        foreach (var (input, transform) in SystemAPI.Query<Input, RefRW<LocalTransform>>()) {
+            ref var transformRef = ref transform.ValueRW;
+            transformRef.Position = Vector3.Max(bounds.min, transformRef.Position);
+            transformRef.Position = Vector3.Min(bounds.max, transformRef.Position);
+        }
+    }
+}
 
 
 public partial struct WalkingEffectsSystem : ISystem
@@ -220,6 +228,7 @@ public partial struct InputToVelocitySystem : ISystem
             velocity.ValueRW.value = input.movement;
             if(math.lengthsq(input.movement) > 0.0f) {
                 transform.ValueRW.Rotation = Quaternion.LookRotation(input.movement, Vector3.up);
+                
             }
         }
     }
@@ -322,5 +331,28 @@ public partial struct DodgingSystem : ISystem
         }
 
         state.EntityManager.RemoveComponent<Dodging>(entities.AsArray());
+    }
+}
+
+
+public partial struct PlantingSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        foreach (var (input, plantingPosition, tree) in SystemAPI.Query<Input, RefRO<LocalTransform>, PlantableTree>())
+		{
+            if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
+			{
+                GameObject newTree = LevelManager.Instantiate(tree.prefab);
+                Vector3 pos = plantingPosition.ValueRO.Position;
+                pos.y = 0.5f;
+                newTree.transform.position = pos;
+
+			}
+		}
     }
 }

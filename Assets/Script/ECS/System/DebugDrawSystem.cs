@@ -6,11 +6,6 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
-public struct Opening : IComponentData
-{
-    public float distance;
-    public float cutoffDistance;
-}
 
 public partial struct OpeningSystem : ISystem
 {
@@ -33,11 +28,6 @@ public partial struct OpeningSystem : ISystem
     }
 }
 
-public struct InCameraView : IComponentData
-{
-
-}
-
 public partial struct VisualCullingSystem : ISystem
 {
     public void OnCreate(ref SystemState state) { }
@@ -58,14 +48,19 @@ public partial struct VisualCullingSystem : ISystem
 
             var bounds = level.GetBoundsWith(transformRef.Position);
             if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
-                var distance = math.distance(target.transform.position, transformRef.Position) - 5.0f;
-                var fraction = distance / 10.0f;
-                fraction = 1.0f - math.smoothstep(0.0f, 1.0f, fraction);
-
-                transformRef.Scale = math.clamp(fraction, 0.0f, 1.0f);
                 cmd.AddComponent<InCameraView>(entity);
             }
         }
+        foreach (var (transform, vs) in SystemAPI.Query<RefRW<LocalTransform>, VisuallyCulled>()) {
+            ref var transformRef = ref transform.ValueRW;
+
+            var distance = math.distance(target.transform.position, transformRef.Position) - vs.cutoffDistance;
+            var fraction = distance / vs.distance;
+            fraction = 1.0f - math.smoothstep(0.0f, 1.0f, fraction);
+
+            transformRef.Scale = math.clamp(fraction, 0.0f, 1.0f);
+        }
+
         cmd.Playback(state.EntityManager);
     }
 }

@@ -13,20 +13,14 @@ public struct BlockData
     public GameObject prefab;
 }
 
-public struct Ground : IComponentData
-{
-
-}
-public struct Tree : IComponentData
-{
-
-}
-
 public class LevelManager : MonoBehaviour, IComponentData
 {
     private static EntityQuery query;
     public static EntityQuery Query => query;
     public static LevelManager Instance => query.GetSingleton<LevelManager>();
+
+    private Bounds bounds = new(Vector3.zero, Vector3.zero);
+    public Bounds Bounds => bounds;
 
     [SerializeField] private List<BlockData> blockData;
 
@@ -75,11 +69,14 @@ public class LevelManager : MonoBehaviour, IComponentData
 
         cubeArchetype = manager.CreateArchetype(typeof(Instanced), typeof(LocalToWorld), typeof(LocalTransform), typeof(WorldTransform), typeof(ParentTransform));
 
-        var ground = Create("Ground", GridToWorld(0, 0, 0), Quaternion.identity, new Vector3Int(64, 1, 64));
+        var ground = Create("Ground", GridToWorld(0, 0, 0), Quaternion.identity, new Vector3Int(32, 1, 32));
         manager.AddComponent<Ground>(ground.AsArray());
 
         var trees = Create("Tree", GridToWorld(0, 1, 0), Quaternion.identity, new Vector3Int(8, 1, 8));
         manager.AddComponent<Tree>(trees.AsArray());
+        foreach(var entity in trees) {
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 6.0f, cutoffDistance = 3.0f });
+        }
     }
 
     public NativeList<Entity> Create(string name, Vector3 at, Quaternion rotation, Vector3Int count)
@@ -88,8 +85,6 @@ public class LevelManager : MonoBehaviour, IComponentData
 
         var resource = resources[name];
         var go = resource.prefab;
-
-        var filter = go.GetComponent<MeshFilter>();
 
         NativeList<Entity> list = new NativeList<Entity>(Allocator.Temp);
         for (int z = 0; z < count.z; z++) {
@@ -105,6 +100,7 @@ public class LevelManager : MonoBehaviour, IComponentData
                     transform.Rotation = rotation;
                     transform.Scale = 1.0f;
 
+                    bounds.Encapsulate(new Bounds(position, cubeSize));
 
                     //manager.SetComponentData(entity, visuals);
                     manager.SetComponentData(entity, transform);
@@ -113,6 +109,12 @@ public class LevelManager : MonoBehaviour, IComponentData
         }
         return list;
         //manager.AddComponentData(entity, new TransformContext { transform = go.transform });
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(bounds.center, bounds.size);
     }
 
     private void OnDestroy()
