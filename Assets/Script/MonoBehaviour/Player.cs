@@ -20,17 +20,7 @@ public class Player : MonoBehaviour
 
     private Entity entity;
 
-    private void OnDrawGizmos()
-    {
-        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        var query = manager.CreateEntityQuery(typeof(LocalToWorld), typeof(Look));
-        var looks = query.ToComponentDataArray<Look>(Allocator.Temp);
-        var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
-        Gizmos.color = Color.red;
-        foreach(var index in Enumerable.Range(0, query.CalculateEntityCount())) {
-            Gizmos.DrawLine(transforms[index].Position, transforms[index].Position + (looks[index].value * 3.0f));
-        }
-    }
+
 
     private void Update()
     {
