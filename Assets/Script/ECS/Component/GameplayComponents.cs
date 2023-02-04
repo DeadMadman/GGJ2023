@@ -141,6 +141,11 @@ public class Anim : IComponentData
 //    public Transform transform;
 //}
 
+public class SkinnedMesh : IComponentData 
+{
+    public SkinnedMeshRenderer skinnedMeshRenderer;
+}
+
 public class Visuals : IComponentData, IEquatable<Visuals>
 {
     public MeshFilter filter;
