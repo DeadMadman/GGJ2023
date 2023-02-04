@@ -6,38 +6,11 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Scenes;
 using Unity.Transforms;
+using UnityEditor.PackageManager;
 using UnityEngine;
-using UnityEngine.Experimental.GlobalIllumination;
 
 public class Player : MonoBehaviour
 {
-    [SerializeField]
-    private GameObject prefab;
-    private MeshFilter meshFilter;
-    private MeshRenderer meshRenderer;
-
-
-    public MeshFilter MeshFilter
-    {
-        get
-        {
-            if (meshFilter == null) {
-                meshFilter = GetComponent<MeshFilter>();
-            }
-            return meshFilter;
-        }
-    }
-
-    public MeshRenderer MeshRenderer
-    {
-        get
-        {
-            if (meshRenderer == null) {
-                meshRenderer = GetComponent<MeshRenderer>();
-            }
-            return meshRenderer;
-        }
-    }
 
     [SerializeField] private float speed;
     [SerializeField] private float dodgeTime;
@@ -46,28 +19,7 @@ public class Player : MonoBehaviour
 
     [SerializeField] private GameObject treePrefab;
 
-    
-
-    public void BeGrey()
-    {
-        MeshRenderer.material.color = Color.grey;
-    }
-    public void BeRed()
-    {
-        MeshRenderer.material.color = Color.red;
-    }
-    public void BeBlue()
-    {
-        MeshRenderer.material.color = Color.blue;
-    }
-    public void BeGreen()
-    {
-        MeshRenderer.material.color = Color.green;
-    }
-    public void BeMagenta()
-    {
-        MeshRenderer.material.color = Color.magenta;
-    }
+    private Entity entity;
 
     private void OnDrawGizmos()
     {
@@ -81,28 +33,61 @@ public class Player : MonoBehaviour
         }
     }
 
-
-    public class Baker : Baker<Player>
+    private void Update()
     {
-        public override void Bake(Player authoring)
-        {
-            // Break down for re-usable bakers
-            var animator = authoring.GetComponent<Animator>();
-            AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
-            AddComponentObject(new Anim { animator = animator });
-            AddComponent(new Speed { value = authoring.speed });
-            AddComponent<Input>();
-            AddComponent<PreviousVelocity>();
-            AddComponent<Velocity>();
-            AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
-            AddComponent(new WalkingVFX { vfxName = "Walking" });
-            AddComponent(new AttackVFX { vfxName = "Axe Swing" });
-            AddComponent(new Look { value = authoring.transform.forward });
-            AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
-            
-            AddComponentObject(new PlantableTree { prefab = GetEntity(authoring.treePrefab) });
-        }
+        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        //var transform = manager.GetComponentData<LocalToWorld>(entity);
+        var localData = manager.GetComponentData<LocalTransform>(entity);
+        this.transform.localPosition = localData.Position;
+        this.transform.localRotation = localData.Rotation;
+        this.transform.localScale = localData.Scale * Vector3.one;
+
     }
+
+    private void Awake()
+    {
+        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        // Break down for re-usable bakers
+        //var copy = authoring.Instance;
+        var archetype = manager.CreateArchetype(typeof(LocalTransform), typeof(WorldTransform), typeof(LocalToWorld));
+        entity = manager.CreateEntity(archetype);
+        var animator = GetComponentInChildren<Animator>();
+
+        manager.AddComponentData(entity, new LocalTransform { Position = transform.position, Rotation = transform.rotation, Scale = 1.0f }) ;
+        manager.AddComponentObject(entity, new Anim { animator = animator });
+        manager.AddComponentData(entity, new Speed { value = speed });
+        manager.AddComponent<Input>(entity);
+        manager.AddComponent<PreviousVelocity>(entity);
+        manager.AddComponent<Velocity>(entity);
+        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+        manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
+        manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
+        manager.AddComponentData(entity, new Look { value = transform.forward });
+        manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
+        manager.AddComponentData(entity, new PlantableTree { entity = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntity() });
+    }
+
+    //public class Baker : Baker<Player>
+    //{
+    //    public override void Bake(Player authoring)
+    //    {
+    //        // Break down for re-usable bakers
+    //        //var copy = authoring.Instance;
+    //        var animator = authoring.GetComponentInChildren<Animator>();
+
+    //        AddComponentObject(new Anim { animator = animator });
+    //        AddComponent(new Speed { value = authoring.speed });
+    //        AddComponent<Input>();
+    //        AddComponent<PreviousVelocity>();
+    //        AddComponent<Velocity>();
+    //        AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+    //        AddComponent(new WalkingVFX { vfxName = "Walking" });
+    //        AddComponent(new AttackVFX { vfxName = "Axe Swing" });
+    //        AddComponent(new Look { value = authoring.transform.forward });
+    //        AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
+    //        AddComponentObject(new PlantableTree { prefab = authoring.treePrefab });
+    //    }
+    //}
 }
 
 
@@ -479,10 +464,11 @@ public partial struct PlantingSystem : ISystem
         foreach (var (input, plantingPosition, tree) in SystemAPI.Query<Input, RefRO<LocalTransform>, PlantableTree>())
 		{
             if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
-			{
-                Entity newTree = state.EntityManager.Instantiate(tree.prefab);
-                Vector3 pos = plantingPosition.ValueRO.Position;
+            {
+                float3 pos = plantingPosition.ValueRO.Position;
                 pos.y = 0.5f;
+                Entity newTree = state.EntityManager.Instantiate(tree.entity);
+                // It says that the new entity doesn't have a LocalTransform, this was not an issue before.
                 state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
 			}
 		}

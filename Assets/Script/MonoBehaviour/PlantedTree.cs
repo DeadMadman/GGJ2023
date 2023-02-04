@@ -33,19 +33,20 @@ public class PlantedTree : MonoBehaviour
         }
     }
 
-    [SerializeField] private float exclusionRadius;
-    [SerializeField] private float timeTillFullyGrown;
+    [SerializeField] public float exclusionRadius;
+    [SerializeField] public float timeTillFullyGrown;
+}
 
-    public class Baker : Baker<PlantedTree>
-	{
-        public override void Bake(PlantedTree authoring)
-		{
-            AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
-            AddComponent(new LocalTransform { Position = authoring.transform.position, Rotation = authoring.transform.rotation, Scale = 1 });
-            AddComponent(new GrowthComponent { exclusionRadius = authoring.exclusionRadius, growthSpeedMultiplier = 1, timeTillFullyGrown = authoring.timeTillFullyGrown });
-            authoring.transform.localScale = new Vector3(0,0,0);
-        }
-	}
+public class Baker : Baker<PlantedTree>
+{
+    public override void Bake(PlantedTree authoring)
+    {
+        Debug.Log("We got that dog in us");
+        AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
+        AddComponent(new LocalTransform { Position = authoring.transform.position, Rotation = authoring.transform.rotation, Scale = 1 });
+        AddComponent(new GrowthComponent { exclusionRadius = authoring.exclusionRadius, growthSpeedMultiplier = 1, timeTillFullyGrown = authoring.timeTillFullyGrown });
+        authoring.transform.localScale = new Vector3(0, 0, 0);
+    }
 }
 
 public partial struct GrowthSystem : ISystem

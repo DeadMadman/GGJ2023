@@ -123,15 +123,28 @@ public partial class DrawSystem : SystemBase
             if (visuals != null) {
                 var renderer = visuals.renderer;
 
-                var mesh = visuals.filter.mesh;
-                for (var index = 0; index < mesh.subMeshCount; index++) {
+                var filter = visuals.filter;
+                for (var index = 0; index < filter.mesh.subMeshCount; index++) {
                     var material = renderer.materials[index];
                     RenderParams renderParams = new(material);
 
-                    Graphics.RenderMesh(renderParams, mesh, index, transform.Value);
+                    Graphics.RenderMesh(renderParams, filter.mesh, index, transform.Value);
                 }
             }
         }
 
+        //foreach (var (transform, skin) in SystemAPI.Query<LocalToWorld, SkinnedMesh>().WithNone<Instanced>()) {
+        //    if (skin != null) {
+        //        var renderer = skin.skinnedMeshRenderer;
+
+        //        for (var index = 0; index < renderer.sharedMesh.subMeshCount; index++) {
+        //            var material = renderer.materials[index];
+        //            RenderParams renderParams = new(material);
+
+        //            renderer.BakeMesh(renderer.sharedMesh);
+        //            Graphics.RenderMesh(renderParams, renderer.sharedMesh, index, transform.Value);
+        //        }
+        //    }
+        //}
     }
 }
