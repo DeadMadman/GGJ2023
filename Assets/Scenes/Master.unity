@@ -156,6 +156,9 @@ MonoBehaviour:
   - name: Walking
     particleSystem: {fileID: 2231245700090996881, guid: 00f4982ff57432049870376a1ce594a4,
       type: 3}
+  - name: Explosion
+    particleSystem: {fileID: 2433282508523890284, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312,
+      type: 3}
 --- !u!4 &152196751
 Transform:
   m_ObjectHideFlags: 0
