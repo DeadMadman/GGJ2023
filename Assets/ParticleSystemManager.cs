@@ -27,7 +27,7 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
     private void Awake()
     {
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        manager.CreateSingleton(this, "Particle System Manager");
+        manager.CreateSingleton(this, gameObject.name);
 
         foreach(var item in particleSystems) {
             particleSystemsLookup.Add(item.name, item.particleSystem);
@@ -74,7 +74,7 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
     {
         var instances = instancesParticleSystems[name];
         if(instances.ContainsKey(index)) {
-            Destroy(instances[index]);
+            DestroyImmediate(instances[index].gameObject);
             instances.Remove(index);
             freeList.Add(index);
         }

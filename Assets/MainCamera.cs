@@ -14,7 +14,7 @@ public class MainCamera : MonoBehaviour, IComponentData
     private void Awake()
     {
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        manager.CreateSingleton(this, "Main Camera");
+        manager.CreateSingleton(this, gameObject.name);
         query = manager.CreateEntityQuery(typeof(MainCamera));
     }
 }

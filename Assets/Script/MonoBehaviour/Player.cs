@@ -4,7 +4,6 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using UnityEditor.PackageManager;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Jobs;
@@ -12,62 +11,65 @@ using UnityEngine.Windows;
 
 public class Player : MonoBehaviour
 {
+    [SerializeField]
+    private GameObject prefab;
+    private MeshFilter meshFilter;
+    private MeshRenderer meshRenderer;
+
+
+    public MeshFilter MeshFilter
+    {
+        get 
+        { 
+            if(meshFilter == null) {
+                meshFilter = GetComponent<MeshFilter>();
+            }
+            return meshFilter; 
+        }
+    }
+
+    public MeshRenderer MeshRenderer
+    {
+        get
+        {
+            if (meshRenderer == null) {
+                meshRenderer = GetComponent<MeshRenderer>();
+            }
+            return meshRenderer;
+        }
+    }
+
     [SerializeField] private float speed;
-    [SerializeField] private Mesh mesh;
-    [SerializeField] private Material material;
-
-
     [SerializeField] private float dodgeTime;
     [SerializeField] private float dodgeSpeed;
     [SerializeField] private float dodgeCooldown;
 
-
-    private Material instance;
-    public Mesh Mesh => mesh;
-    public Material MaterialInstance
-    {
-        get
-        { 
-            if(instance == null) {
-                instance = Instantiate(material);
-            }
-            return instance;
-        
-        } 
-    }
-
+    
 
     public void BeGrey()
     {
-        MaterialInstance.color = Color.grey;
+        MeshRenderer.material.color = Color.grey;
     }
     public void BeRed()
     {
-        MaterialInstance.color = Color.red;
+        MeshRenderer.material.color = Color.red;
     }
     public void BeBlue()
     {
-        MaterialInstance.color = Color.blue;
+        MeshRenderer.material.color = Color.blue;
     }
     public void BeGreen()
     {
-        MaterialInstance.color = Color.green;
+        MeshRenderer.material.color = Color.green;
     }
     public void BeMagenta()
     {
-        MaterialInstance.color = Color.magenta;
+        MeshRenderer.material.color = Color.magenta;
     }
 
     public void Walk()
     {
         
-    }
-
-    private void OnDestroy()
-    {
-        if(instance != null) {
-            DestroyImmediate(instance);
-        }
     }
 
 
@@ -76,13 +78,32 @@ public class Player : MonoBehaviour
         public override void Bake(Player authoring)
         {
             var animator = authoring.GetComponent<Animator>();
-            AddComponent<Movement>();
-            AddComponentObject(new Visuals { mesh = authoring.Mesh, material = authoring.MaterialInstance, animator = animator });
+            AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
+            AddComponentObject(new Anim { animator = animator });
             AddComponent(new Speed { value = authoring.speed });
             AddComponent<Input>();
+            AddComponent<PreviousVelocity>();
             AddComponent<Velocity>();
+            AddComponentObject(new TransformContext { transform = authoring.transform });
+            AddComponent(new WalkingVFX { vfxName = "Walking" });
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
+            
+        }
+    }
+}
+
+
+public partial struct VelocityToPreviousVelocitySystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        foreach(var (prev, curr) in SystemAPI.Query<RefRW<PreviousVelocity>, Velocity>()) {
+            prev.ValueRW.value = curr.value;
         }
     }
 }
@@ -95,27 +116,47 @@ public partial struct VelocityToAnimatorSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-        var dt = SystemAPI.Time.DeltaTime;
-        var particles = ParticleSystemManager.Instance;
-
-        EntityCommandBuffer cmd = new(Allocator.Temp);
-
-        foreach (var (visuals, input, entity) in SystemAPI.Query<Visuals, Input>().WithEntityAccess()) {
+        foreach (var (visuals, input) in SystemAPI.Query<Anim, Input>()) {
             var anim = visuals.animator;
-            anim.Update(dt);
             anim.SetFloat("lookx", input.movement.x);
             anim.SetFloat("looky", input.movement.y);
-
-            if (math.lengthsq(input.movement) > 0.0f) {
-                cmd.AddComponent<Walking>(entity);
-            }
-            else {
-                cmd.RemoveComponent<Walking>(entity);
-            }
         }
     }
 
 }
+
+public partial struct UpdateVisuals : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var dt = SystemAPI.Time.DeltaTime;
+        foreach (var visuals in SystemAPI.Query<Anim>()) {
+            var anim = visuals.animator;
+            anim.Update(dt);
+        }
+    }
+}
+
+
+public partial struct UpdateTransformContext : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        foreach (var (context, transform) in SystemAPI.Query<TransformContext, LocalToWorld>()) {
+            context.transform.localPosition = transform.Position;
+            context.transform.localRotation = transform.Rotation;
+        }
+    }
+}
+
 
 public partial struct WalkingEffectsSystem : ISystem
 {
@@ -125,14 +166,23 @@ public partial struct WalkingEffectsSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-        var dt = SystemAPI.Time.DeltaTime;
         var particles = ParticleSystemManager.Instance;
 
-        EntityCommandBuffer cmd = new(Allocator.Temp);
+        foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<WalkingVFX>>()) {
+            bool isMoving = math.lengthsq(velocity.value) > 0.0f;
+            bool wasMoving = math.lengthsq(previousVelocity.value) > 0.0f;
+            ref WalkingVFX vfxRef = ref vfx.ValueRW;
+            var key = vfxRef.vfxName.Value;
+            if (isMoving && !wasMoving) {
+                vfxRef.handle = particles.Play(key, transform.Position, transform.Rotation);
+            }
+            else if (!isMoving && wasMoving) {
+                particles.Stop(key, vfxRef.handle);
+            }
 
-        foreach (var (visuals, input, entity) in SystemAPI.Query<Visuals, Input>().WithEntityAccess()) {
-
-
+            if(isMoving) {
+                particles.Transform(key, vfxRef.handle, transform.Position, transform.Rotation);
+            }
         }
     }
 
@@ -236,7 +286,7 @@ public partial struct InputToDodgeSystem : ISystem
         var particle = ParticleSystemManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Visuals, LocalToWorld>().WithNone<Dodging>().WithEntityAccess()) {
+        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Anim, LocalToWorld>().WithNone<Dodging>().WithEntityAccess()) {
             var time = dodge.ValueRO.time - dt;
             if(time <= 0.0f && input.justDodged) {
                 dodge.ValueRW.time += dodge.ValueRO.cooldown;
@@ -264,7 +314,7 @@ public partial struct DodgingSystem : ISystem
             velocity.ValueRW.value = look.value * dodge.dodgeSpeed;
         }
 
-        foreach (var (dodging, visuals, entity) in SystemAPI.Query<RefRW<Dodging>, Visuals>().WithEntityAccess()) {
+        foreach (var (dodging, visuals, entity) in SystemAPI.Query<RefRW<Dodging>, Anim>().WithEntityAccess()) {
             var time = dodging.ValueRO.time - dt;
             if (time <= 0.0f) {
                 entities.Add(entity);
