@@ -2,20 +2,85 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
-[WorldSystemFilter(WorldSystemFilterFlags.Default)]
+public struct Opening : IComponentData
+{
+    public float distance;
+    public float cutoffDistance;
+}
+
+public partial struct OpeningSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var target = CameraTarget.Instance;
+        foreach (var (transform, open) in SystemAPI.Query<RefRW<LocalTransform>, Opening>()) {
+            ref var transformRef = ref transform.ValueRW;
+
+            var distance = math.distance(target.transform.position, transformRef.Position) - open.cutoffDistance;
+            var fraction = distance / open.distance;
+            fraction = math.smoothstep(0.0f, 1.0f, fraction);
+
+            transformRef.Scale = math.clamp(fraction, 0.0f, 1.0f);
+        }
+    }
+}
+
+public struct InCameraView : IComponentData
+{
+
+}
+
+public partial struct VisualCullingSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var level = LevelManager.Instance;
+        var cam = MainCamera.Instance;
+        var planes = GeometryUtility.CalculateFrustumPlanes(cam.camera);
+
+        EntityCommandBuffer cmd = new(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+        
+        var target = CameraTarget.Instance;
+        foreach (var (transform, entity) in SystemAPI.Query<RefRW<LocalTransform>>().WithAll<Instanced>().WithEntityAccess()) {
+            ref var transformRef = ref transform.ValueRW;
+
+            var bounds = level.GetBoundsWith(transformRef.Position);
+            if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
+                var distance = math.distance(target.transform.position, transformRef.Position) - 5.0f;
+                var fraction = distance / 10.0f;
+                fraction = 1.0f - math.smoothstep(0.0f, 1.0f, fraction);
+
+                transformRef.Scale = math.clamp(fraction, 0.0f, 1.0f);
+                cmd.AddComponent<InCameraView>(entity);
+            }
+        }
+        cmd.Playback(state.EntityManager);
+    }
+}
+
+
 public partial class DrawSystem : SystemBase
 {
 
-    private void Draw(NativeList<LocalToWorld> list, Mesh mesh, Material[] materials)
+    private void Draw(NativeArray<LocalToWorld> list, Mesh mesh, Material[] materials)
     {
-        if(list.IsEmpty) {
+        if(list.Length == 0) {
             return;
         }
 
-        var transforms = list.AsArray().Reinterpret<Matrix4x4>();
+        var transforms = list.Reinterpret<Matrix4x4>();
         for (int i = 0; i < mesh.subMeshCount; i++) {
             Graphics.RenderMeshInstanced(new RenderParams(materials[i]), mesh, i, transforms, transforms.Length);
         }
@@ -42,68 +107,36 @@ public partial class DrawSystem : SystemBase
                 }
             }
         }
+
         {
             var groundResource = LevelManager.Instance.Get("Ground");
             var go = groundResource.prefab;
             var mesh = go.GetComponent<MeshFilter>().sharedMesh;
             var sharedMaterials = go.GetComponent<MeshRenderer>().sharedMaterials;
+            
+            EntityQueryBuilder builder = new EntityQueryBuilder(Allocator.Temp);
+            var query = builder.WithAll<Instanced, Ground, InCameraView>().WithAll<LocalToWorld>().Build(this);
+            //var query = GetEntityQuery(builder.WithAll<Instanced, Ground, InView>().WithAll<LocalToWorld>());
+            var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
+            Draw(transforms, mesh, sharedMaterials);
 
-            NativeList<LocalToWorld> list = new NativeList<LocalToWorld>(Allocator.Temp);
-            if (sharedMaterials != null && mesh != null) {
-                foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Instanced, Ground>()) {
-                    var bounds = level.GetBoundsWith(transform);
-                    bounds.center = Vector3.LerpUnclamped(target.transform.position, bounds.center, 1.25f);
-                    if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
-                        list.Add(transform);
-                    }
-                }
-            }
-            Draw(list, mesh, sharedMaterials);
+            EntityManager.RemoveComponent<InCameraView>(query.ToEntityArray(Allocator.Temp));
         }
 
         {
             var groundResource = LevelManager.Instance.Get("Tree");
             var go = groundResource.prefab;
             var mesh = go.GetComponent<MeshFilter>().sharedMesh;
+
             var sharedMaterials = go.GetComponent<MeshRenderer>().sharedMaterials;
+            EntityQueryBuilder builder = new EntityQueryBuilder(Allocator.Temp);
+            var query = builder.WithAll<Instanced, Tree, InCameraView>().WithAll<LocalToWorld>().Build(this);
+            //var query = GetEntityQuery(builder.WithAll<Instanced, Tree, InView>().WithAll<LocalToWorld>());
+            var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
+            Draw(transforms, mesh, sharedMaterials);
 
-            NativeList<LocalToWorld> list = new NativeList<LocalToWorld>(Allocator.Temp);
-            if (sharedMaterials != null && mesh != null) {
-                foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Instanced, Tree>()) {
-
-                    var bounds = level.GetBoundsWith(transform);
-                    bounds.center = Vector3.LerpUnclamped(target.transform.position, bounds.center, 1.5f);
-                    if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
-                        list.Add(transform);
-                    }
-                }
-            }
-            Draw(list, mesh, sharedMaterials);
+            EntityManager.RemoveComponent<InCameraView>(query.ToEntityArray(Allocator.Temp));
         }
-        //var groundResource = LevelManager.Instance.Get("Ground");
-        //var go = groundResource.prefab;
-        //var mesh = go.GetComponent<MeshFilter>().sharedMesh;
-        //var sharedMaterials = go.GetComponent<MeshRenderer>().sharedMaterials;
-
-        //NativeList<LocalToWorld> list = new NativeList<LocalToWorld>(Allocator.Temp);
-        //if (sharedMaterials != null && mesh != null) {
-        //    foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Instanced, Ground>()) {
-
-        //        var bounds = mesh.bounds;
-        //        bounds.center += (Vector3)transform.Position;
-
-        //        if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
-        //            for (var index = 0; index < mesh.subMeshCount; index++) {
-        //                list.Add(transform);
-        //            }
-        //        }
-        //    }
-        //}
-
-        //var transforms = list.AsArray().Reinterpret<Matrix4x4>();
-        //for (int i = 0; i < mesh.subMeshCount; i++) {
-        //    Graphics.RenderMeshInstanced(new RenderParams(sharedMaterials[i]), mesh, i, transforms, transforms.Length);
-        //}
 
     }
 }
