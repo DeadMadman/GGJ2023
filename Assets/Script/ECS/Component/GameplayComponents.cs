@@ -52,6 +52,7 @@ public struct Input : IComponentData
 {
     public float3 movement;
     public bool justDodged;
+    public bool plantButton;
 }
 
 public class Anim : IComponentData
@@ -75,4 +76,10 @@ public class Visuals : IComponentData
     public MeshRenderer renderer;
 }
 
-
+public struct GrowthComponents :  IComponentData
+{
+    public float exclusionRadius; // Area around a tree where another tree can't be planted, should not change during gameplay
+    public float growthSpeedMultiplier; // Increases when fertilized default should be 1
+    public float timeTillFullyGrown;
+    //public int growthLevel;
+}

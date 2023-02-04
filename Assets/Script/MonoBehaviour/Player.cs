@@ -328,3 +328,23 @@ public partial struct DodgingSystem : ISystem
         state.EntityManager.RemoveComponent<Dodging>(entities.AsArray());
     }
 }
+
+
+public partial struct PlantingSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        foreach (var (input, plantingPosition) in SystemAPI.Query<Input, RefRO<LocalTransform>>())
+		{
+            if (input.plantButton) // Need to somewhow also ask if the tree can be planted at the plantingPosition
+			{
+                //plant tree
+
+			}
+		}
+    }
+}
