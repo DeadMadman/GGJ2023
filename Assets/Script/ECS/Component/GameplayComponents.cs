@@ -53,6 +53,7 @@ public struct Input : IComponentData
     public float3 movement;
     public bool justDodged;
     public bool justAttacked;
+    public bool plantButton;
 }
 
 public struct Attack : IComponentData
@@ -137,4 +138,13 @@ public class Visuals : IComponentData, IEquatable<Visuals>
     }
 }
 
-
+public class PlantableTree : IComponentData
+{
+    public GameObject prefab;
+}
+public struct GrowthComponent :  IComponentData
+{
+    public float growthSpeedMultiplier; // Increases when fertilized default should be 1
+    public float timeTillFullyGrown;
+    //public int growthLevel;
+}
