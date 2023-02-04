@@ -8,6 +8,16 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Jobs;
 
+public struct Health : IComponentData
+{
+    public int health;
+}
+
+public struct Killed : IComponentData
+{
+    
+}
+
 public struct PreviousVelocity : IComponentData
 {
     public float3 value;
@@ -131,6 +141,16 @@ public struct VisuallyCulled : IComponentData
     public float cutoffDistance;
 }
 
+public struct Collectible : IComponentData
+{
+
+}
+
+public struct WalkingEnemy : IComponentData
+{
+
+}
+
 public class Anim : IComponentData
 {
     public Animator animator;
@@ -160,6 +180,7 @@ public class Visuals : IComponentData, IEquatable<Visuals>
 public class PlantableTree : IComponentData
 {
     public Entity entity;
+    public GameObject prefab;
 }
 public struct GrowthComponent :  IComponentData
 {

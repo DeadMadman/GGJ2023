@@ -77,6 +77,7 @@ public class LevelManager : MonoBehaviour, IComponentData
         foreach(var entity in trees) {
             manager.AddComponentData(entity, new VisuallyCulled { distance = 7.5f, cutoffDistance = 2.5f });
             manager.AddComponentData(entity, new HitVFX { vfxName = "Explosion" });
+            manager.AddComponentData(entity, new Health { health = 1 });
         }
         manager.AddComponent<Attackable>(trees);
     }

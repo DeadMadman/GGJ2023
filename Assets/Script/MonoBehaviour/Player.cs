@@ -7,8 +7,6 @@ using Unity.Mathematics;
 using Unity.Scenes;
 using Unity.Transforms;
 using UnityEngine;
-using static UnityEngine.ParticleSystem;
-using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 
 public class Player : MonoBehaviour
 {
@@ -50,12 +48,14 @@ public class Player : MonoBehaviour
         manager.AddComponent<Input>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 1.25f, range = 2.5f, angle = 180.0f });
+        manager.AddComponentData(entity, new Attack { attackTime = 0.25f, cooldown = 1.5f, range = 2.5f, angle = 180.0f });
         manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
         manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
         manager.AddComponentData(entity, new Look { value = transform.forward });
         manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
-        manager.AddComponentData(entity, new PlantableTree { entity = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntity() });
+
+        var tree = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntity(typeof(LocalTransform), typeof(WorldTransform), typeof(LocalToWorld), typeof(Prefab));
+        manager.AddComponentData(entity, new PlantableTree { entity = tree, prefab = treePrefab });
     }
 
     //public class Baker : Baker<Player>
@@ -96,6 +96,21 @@ public partial struct VelocityToPreviousVelocitySystem : ISystem
     }
 }
 
+public partial struct AIToVelocity : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var target = CameraTarget.Instance.transform.position;
+        foreach (var (vel, transform) in SystemAPI.Query<RefRW<Velocity>, LocalToWorld>().WithAll<WalkingEnemy>()) {
+            vel.ValueRW.value = math.normalizesafe((float3)target - transform.Position);
+        }
+    }
+}
+
 public partial struct VelocityToAnimatorSystem : ISystem
 {
     public void OnCreate(ref SystemState state) { }
@@ -104,10 +119,10 @@ public partial struct VelocityToAnimatorSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-        foreach (var (visuals, input) in SystemAPI.Query<Anim, Input>()) {
+        foreach (var (visuals, input) in SystemAPI.Query<Anim, Velocity>()) {
             var anim = visuals.animator;
-            anim.SetFloat("lookx", input.movement.x);
-            anim.SetFloat("looky", input.movement.z);
+            anim.SetFloat("lookx", input.value.x);
+            anim.SetFloat("looky", input.value.z);
         }
     }
 
@@ -124,6 +139,7 @@ public partial struct UpdateVisuals : ISystem
         var dt = SystemAPI.Time.DeltaTime;
         foreach (var visuals in SystemAPI.Query<Anim>()) {
             var anim = visuals.animator;
+            // Needed or the animations break. Oups.
             anim.Update(dt);
         }
     }
@@ -213,11 +229,13 @@ public partial struct InputToVelocitySystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-        foreach(var (input, velocity, transform) in SystemAPI.Query<Input, RefRW<Velocity>, RefRW<LocalTransform>>().WithNone<Dodging, Attacking>()) {
+        foreach (var (input, velocity) in SystemAPI.Query<Input, RefRW<Velocity>>().WithNone<Dodging>()) {
             velocity.ValueRW.value = input.movement;
-            if(math.lengthsq(input.movement) > 0.0f) {
-                transform.ValueRW.Rotation = Quaternion.LookRotation(input.movement, Vector3.up);
-                
+        }
+
+        foreach (var (velocity, transform) in SystemAPI.Query<Velocity, RefRW<LocalTransform>>()/*.WithNone<Dodging, Attacking>()*/) {
+            if(math.lengthsq(velocity.value) > 0.0f) {
+                transform.ValueRW.Rotation = Quaternion.LookRotation(velocity.value, Vector3.up);
             }
         }
     }
@@ -268,25 +286,55 @@ public partial struct FollowPlayerSystem : ISystem
 }
 public partial struct InputToAttackSystem : ISystem
 {
-    public void OnCreate(ref SystemState state) { }
+    private EntityQuery walkingEnemyQuery;
+    public void OnCreate(ref SystemState state) 
+    {
+        walkingEnemyQuery = state.GetEntityQuery(typeof(WalkingEnemy));
+    }
 
     public void OnDestroy(ref SystemState state) { }
 
     public void OnUpdate(ref SystemState state)
     {
+        var target = CameraTarget.Instance.transform.position;
         var dt = SystemAPI.Time.DeltaTime;
 
         var particles = ParticleSystemManager.Instance;
 
+        walkingEnemyQuery = state.GetEntityQuery(typeof(WalkingEnemy), typeof(LocalToWorld));
+
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackVFX>>().WithNone<Dodging, Attacking>().WithEntityAccess()) {
+        foreach (var (look, velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Look>, RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackVFX>>().WithNone<Attacking>().WithEntityAccess()) {
             var time = attack.ValueRO.time - dt;
             var att = attack.ValueRO;
+            
+            var entities = walkingEnemyQuery.ToEntityArray(Allocator.Temp);
+            var enemies = walkingEnemyQuery.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
+
+            int closest = -1;
+            var score = float.MaxValue;
+            for(int i = 0; i < enemies.Length; i++) {
+                var enemy = enemies[i];
+                var delta = Vector3.Distance(target, enemy.Position);
+                if(delta < att.range && delta < score) {
+                    score = delta;
+                    closest = i;
+                }
+            }
+            bool HasClosest() => closest >= 0;
+            var closestEntity = HasClosest() ? entities[closest] : Entity.Null;
+
+            // 
+
             ref var attackVfx = ref vfx.ValueRW;
-            if (time <= 0.0f && input.justAttacked) {
+            if (time <= 0.0f && (input.justAttacked || HasClosest())) {
+                if(HasClosest()) {
+                    look.ValueRW.value = math.normalizesafe(enemies[closest].Position - transform.Position, float3.zero); 
+                }
+
                 attack.ValueRW.time += attack.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Attacking { time = attack.ValueRO.attackTime, angle = att.angle, range = att.range });
-                velocity.ValueRW.value = Vector3.zero;
+
                 visuals.animator.SetBool("attack", true);
                 particles.PlayOnce(attackVfx.vfxName.Value, transform.Position + math.float3(0.0f, 1.0f, 0.0f), transform.Rotation);
             }
@@ -311,22 +359,50 @@ public partial struct OnHitSystem : ISystem
                 particles.PlayOnce(handle.ValueRW.vfxName.Value, transform.Position + math.float3(0.0f, 0.5f, 0.0f), transform.Rotation);
 
             }
-            //else if(attackable.StoppedAttacked){
-            //    Debug.Log("End");
-            //    particles.Stop(handle.ValueRW.handle);
-            //}
-
-            //if(attackable.IsAttacked) {
-            //    Debug.Log("Attack");
-            //}
         }
+
+        var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+        foreach (var (attackable, health, entity) in SystemAPI.Query<Attackable, RefRW<Health>>().WithEntityAccess()) {
+            if (attackable.JustAttacked) {
+                health.ValueRW.health = health.ValueRO.health - 1;
+                if(health.ValueRW.health <= 0) {
+                    cmd.AddComponent<Killed>(entity);
+                }
+            }
+        }
+        cmd.Playback(state.EntityManager);
+    }
+}
+
+public partial struct KillSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var particles = ParticleSystemManager.Instance;
+        var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+        foreach (var (anim, entity) in SystemAPI.Query<Anim>().WithAll<Killed>().WithEntityAccess()) {
+            GameObject.DestroyImmediate(anim.animator.gameObject);
+        }
+        foreach (var (vfx, entity) in SystemAPI.Query<WalkingVFX>().WithAll<Killed>().WithEntityAccess()) {
+            particles.Stop(vfx.handle);
+        }
+
+        foreach (var (transform, entity) in SystemAPI.Query<LocalToWorld>().WithAll<Killed>().WithEntityAccess()) {
+            cmd.DestroyEntity(entity);
+            particles.PlayOnce("Death", transform.Position, transform.Rotation);
+        }
+        cmd.Playback(state.EntityManager);
     }
 }
 
 
 public partial struct AttackSystem : ISystem
 {
-    private bool InFOV(Vector3 lhs, Vector3 dir, Vector3 rhs, float minDistance, float maxDistance, float angle)
+    public bool InFOV(Vector3 lhs, Vector3 dir, Vector3 rhs, float minDistance, float maxDistance, float angle)
     {
         var offset = rhs - lhs;
         var distance = offset.magnitude;
@@ -401,7 +477,7 @@ public partial struct InputToDodgeSystem : ISystem
         var particles = ParticleSystemManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Anim, LocalToWorld>().WithNone<Dodging, Attacking>().WithEntityAccess()) {
+        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Anim, LocalToWorld>()/*.WithNone<Dodging, Attacking>()*/.WithEntityAccess()) {
             var time = dodge.ValueRO.time - dt;
             if(time <= 0.0f && input.justDodged) {
                 dodge.ValueRW.time += dodge.ValueRO.cooldown;
@@ -454,16 +530,26 @@ public partial struct PlantingSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
+
+        EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+
         foreach (var (input, plantingPosition, tree) in SystemAPI.Query<Input, RefRO<LocalTransform>, PlantableTree>())
 		{
             if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
             {
                 float3 pos = plantingPosition.ValueRO.Position;
                 pos.y = 0.5f;
-                Entity newTree = state.EntityManager.Instantiate(tree.entity);
+                // Entity newTree = state.EntityManager.Instantiate(tree.entity);
                 // It says that the new entity doesn't have a LocalTransform, this was not an issue before.
-                state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
+                var entity = cmd.Instantiate(tree.entity);
+                var gameObject = GameObject.Instantiate(tree.prefab);
+                cmd.AddComponent(entity, new Visuals { filter = gameObject.GetComponent<MeshFilter>(), renderer = gameObject.GetComponent<MeshRenderer>() });
+                cmd.AddComponent(entity, LocalTransform.FromPosition(pos));
+                //state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
 			}
 		}
+        cmd.Playback(state.EntityManager);
+
+
     }
 }

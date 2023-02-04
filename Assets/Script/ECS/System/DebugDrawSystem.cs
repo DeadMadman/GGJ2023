@@ -77,6 +77,9 @@ public partial class DrawSystem : SystemBase
 
         var transforms = list.Reinterpret<Matrix4x4>();
         for (int i = 0; i < mesh.subMeshCount; i++) {
+            var rp = new RenderParams(materials[i]);
+            rp.layer = -1000;
+    
             Graphics.RenderMeshInstanced(new RenderParams(materials[i]), mesh, i, transforms, transforms.Length);
         }
     }
@@ -100,7 +103,7 @@ public partial class DrawSystem : SystemBase
             //var query = GetEntityQuery(builder.WithAll<Instanced, Ground, InView>().WithAll<LocalToWorld>());
             var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
             Draw(transforms, mesh, sharedMaterials);
-
+            
             EntityManager.RemoveComponent<InCameraView>(query.ToEntityArray(Allocator.Temp));
         }
 
