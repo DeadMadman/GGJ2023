@@ -76,6 +76,7 @@ public class Player : MonoBehaviour
     {
         public override void Bake(Player authoring)
         {
+            // Break down for re-usable bakers
             var animator = authoring.GetComponent<Animator>();
             AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
             AddComponentObject(new Anim { animator = animator });
@@ -83,6 +84,7 @@ public class Player : MonoBehaviour
             AddComponent<Input>();
             AddComponent<PreviousVelocity>();
             AddComponent<Velocity>();
+            AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f });
             AddComponent(new WalkingVFX { vfxName = "Walking" });
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
@@ -275,6 +277,89 @@ public partial struct FollowPlayerSystem : ISystem
             target.SetPosition(total / count);
             target.SetRotation(rotation);
         }
+    }
+}
+public partial struct InputToAttackSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var dt = SystemAPI.Time.DeltaTime;
+
+        var particle = ParticleSystemManager.Instance;
+
+        EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Attack>, Input, Anim, LocalToWorld>().WithNone<Attacking>().WithEntityAccess()) {
+            var time = dodge.ValueRO.time - dt;
+            if (time <= 0.0f && input.justAttacked) {
+                dodge.ValueRW.time += dodge.ValueRO.cooldown;
+                cmd.AddComponent(entity, new Attacking { time = dodge.ValueRO.attackTime });
+
+                visuals.animator.SetBool("attack", true);
+            }
+            dodge.ValueRW.time = math.max(time, 0.0f);
+        }
+        cmd.Playback(state.EntityManager);
+    }
+}
+
+
+public partial struct AttackSystem : ISystem
+{
+    private bool InFOV(Vector3 lhs, Vector3 dir, Vector3 rhs, float maxDistance, float angle)
+    {
+        var offset = lhs - rhs;
+        var distance = offset.magnitude;
+
+        if (distance < 0.0f + Mathf.Epsilon) {
+            return true;
+        }
+
+        if (distance < maxDistance) {
+            var unitOffset = offset / distance;
+            var coneViewDot = Vector3.Dot(dir, unitOffset);
+            if (coneViewDot > Mathf.Cos(angle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var dt = SystemAPI.Time.DeltaTime;
+        NativeList<Entity> entities = new NativeList<Entity>(Allocator.Temp);
+        foreach (var (attack, look, lhs) in SystemAPI.Query<Attack, Look, LocalToWorld>().WithAll<Attacking>()) {
+            foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
+                ref var att = ref attackable.ValueRW;
+                att.prevState = att.currState;
+                if(InFOV(lhs.Position, look.value, rhs.Position, attack.range, 90.0f)) {
+
+                }
+            }
+            //velocity.ValueRW.value = look.value * dodge.dodgeSpeed;
+        }
+
+        foreach (var (attacking, visuals, entity) in SystemAPI.Query<RefRW<Attacking>, Anim>().WithEntityAccess()) {
+            var time = attacking.ValueRO.time - dt;
+            if (time <= 0.0f) {
+                entities.Add(entity);
+
+                visuals.animator.SetBool("attack", false);
+            }
+            GraphicsBuffer graphicsBuffer;
+
+
+            attacking.ValueRW.time = math.max(time, 0.0f);
+        }
+        state.EntityManager.RemoveComponent<Attacking>(entities.AsArray());
     }
 }
 
