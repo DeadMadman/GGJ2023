@@ -5,17 +5,44 @@ using UnityEngine;
 
 public class PlantedTree : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+    private MeshFilter meshFilter;
+    private MeshRenderer meshRenderer;
+
+    public MeshFilter MeshFilter
     {
-        
+        get
+        {
+            if (meshFilter == null)
+            {
+                meshFilter = GetComponent<MeshFilter>();
+            }
+            return meshFilter;
+        }
     }
 
-    // Update is called once per frame
-    void Update()
+    public MeshRenderer MeshRenderer
     {
-        
+        get
+        {
+            if (meshRenderer == null)
+            {
+                meshRenderer = GetComponent<MeshRenderer>();
+            }
+            return meshRenderer;
+        }
     }
+
+    [SerializeField] private float exclusionRadius;
+    [SerializeField] private float timeTillFullyGrown;
+
+    public class Baker : Baker<PlantedTree>
+	{
+        public override void Bake(PlantedTree authoring)
+		{
+            AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
+            AddComponent(new GrowthComponent { /*exclusionRadius = authoring.exclusionRadius,*/ growthSpeedMultiplier = 1, timeTillFullyGrown = authoring.timeTillFullyGrown });
+        }
+	}
 }
 
 public partial struct GrowthSystem : ISystem
@@ -27,7 +54,7 @@ public partial struct GrowthSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var dt = SystemAPI.Time.DeltaTime;
-        foreach (var tree in SystemAPI.Query<RefRW<GrowthComponents>>())
+        foreach (var tree in SystemAPI.Query<RefRW<GrowthComponent>>())
         {
             tree.ValueRW.timeTillFullyGrown -= dt * tree.ValueRO.growthSpeedMultiplier;
             // if timeTillFullyGrown == 0 then tree should become fully growns

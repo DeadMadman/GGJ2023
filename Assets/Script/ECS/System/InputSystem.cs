@@ -41,6 +41,8 @@ public partial struct InputSystem : ISystem
             }
             dir.Normalize();
 
+            input.ValueRW.plantButton = keyboard[Key.P].wasPressedThisFrame;
+
             Vector3 forward = math.cross(math.down(), cam.transform.right) * dir.y;
             Vector3 right = cam.transform.right * dir.x;
             input.ValueRW.movement = Vector3.Normalize(forward + right);

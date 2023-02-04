@@ -81,9 +81,12 @@ public class Visuals : IComponentData, IEquatable<Visuals>
     }
 }
 
-public struct GrowthComponents :  IComponentData
+public class PlantableTree : IComponentData
 {
-    public float exclusionRadius; // Area around a tree where another tree can't be planted, should not change during gameplay
+    public GameObject prefab;
+}
+public struct GrowthComponent :  IComponentData
+{
     public float growthSpeedMultiplier; // Increases when fertilized default should be 1
     public float timeTillFullyGrown;
     //public int growthLevel;
