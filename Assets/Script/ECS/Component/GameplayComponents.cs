@@ -60,6 +60,32 @@ public struct Instanced : IComponentData
 
 }
 
+public struct Opening : IComponentData
+{
+    public float distance;
+    public float cutoffDistance;
+}
+
+public struct InCameraView : IComponentData
+{
+
+}
+
+public struct Ground : IComponentData
+{
+
+}
+
+public struct Tree : IComponentData
+{
+
+}
+public struct VisuallyCulled : IComponentData
+{
+    public float distance;
+    public float cutoffDistance;
+}
+
 public class Anim : IComponentData
 {
     public Animator animator;

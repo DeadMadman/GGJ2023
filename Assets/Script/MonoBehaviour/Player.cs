@@ -5,9 +5,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.Jobs;
-using UnityEngine.Windows;
 
 public class Player : MonoBehaviour
 {
@@ -144,20 +141,24 @@ public partial struct UpdateVisuals : ISystem
 }
 
 
-//public partial struct UpdateTransformContext : ISystem
-//{
-//    public void OnCreate(ref SystemState state) { }
+public partial struct KeepInBoundsSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
 
-//    public void OnDestroy(ref SystemState state) { }
+    public void OnDestroy(ref SystemState state) { }
 
-//    public void OnUpdate(ref SystemState state)
-//    {
-//        foreach (var (context, transform) in SystemAPI.Query<TransformContext, LocalToWorld>()) {
-//            context.transform.localPosition = transform.Position;
-//            context.transform.localRotation = transform.Rotation;
-//        }
-//    }
-//}
+    public void OnUpdate(ref SystemState state)
+    {
+        var level = LevelManager.Instance;
+        var bounds = level.Bounds;
+
+        foreach (var (input, transform) in SystemAPI.Query<Input, RefRW<LocalTransform>>()) {
+            ref var transformRef = ref transform.ValueRW;
+            transformRef.Position = Vector3.Max(bounds.min, transformRef.Position);
+            transformRef.Position = Vector3.Min(bounds.max, transformRef.Position);
+        }
+    }
+}
 
 
 public partial struct WalkingEffectsSystem : ISystem
@@ -227,6 +228,7 @@ public partial struct InputToVelocitySystem : ISystem
             velocity.ValueRW.value = input.movement;
             if(math.lengthsq(input.movement) > 0.0f) {
                 transform.ValueRW.Rotation = Quaternion.LookRotation(input.movement, Vector3.up);
+                
             }
         }
     }
