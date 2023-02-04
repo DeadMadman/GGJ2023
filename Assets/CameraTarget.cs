@@ -21,5 +21,10 @@ public class CameraTarget : MonoBehaviour, IComponentData
     {
         transform.position = position;
     }
-    
+
+    public void SetRotation(Quaternion quaternion)
+    {
+        transform.rotation = quaternion;
+    }
+
 }

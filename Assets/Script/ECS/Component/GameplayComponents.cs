@@ -5,6 +5,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Jobs;
 
 public struct Velocity : IComponentData
 {
@@ -16,10 +17,17 @@ public struct Look : IComponentData
     public float3 value;
 }
 
+
 public struct Movement : IComponentData
 {
 
 }
+
+public struct Walking : IComponentData
+{
+
+}
+
 
 public struct Dodge : IComponentData
 {

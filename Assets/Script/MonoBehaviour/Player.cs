@@ -4,8 +4,10 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEditor.PackageManager;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Jobs;
 using UnityEngine.Windows;
 
 public class Player : MonoBehaviour
@@ -19,12 +21,12 @@ public class Player : MonoBehaviour
     [SerializeField] private float dodgeSpeed;
     [SerializeField] private float dodgeCooldown;
 
-    private Material instance;
 
+    private Material instance;
     public Mesh Mesh => mesh;
-    public Material MaterialInstance 
-    { 
-        get 
+    public Material MaterialInstance
+    {
+        get
         { 
             if(instance == null) {
                 instance = Instantiate(material);
@@ -33,6 +35,7 @@ public class Player : MonoBehaviour
         
         } 
     }
+
 
     public void BeGrey()
     {
@@ -55,6 +58,11 @@ public class Player : MonoBehaviour
         MaterialInstance.color = Color.magenta;
     }
 
+    public void Walk()
+    {
+        
+    }
+
     private void OnDestroy()
     {
         if(instance != null) {
@@ -62,12 +70,12 @@ public class Player : MonoBehaviour
         }
     }
 
+
     public class Baker : Baker<Player>
     {
         public override void Bake(Player authoring)
         {
             var animator = authoring.GetComponent<Animator>();
-            
             AddComponent<Movement>();
             AddComponentObject(new Visuals { mesh = authoring.Mesh, material = authoring.MaterialInstance, animator = animator });
             AddComponent(new Speed { value = authoring.speed });
@@ -77,20 +85,9 @@ public class Player : MonoBehaviour
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
         }
     }
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }
 
-public partial struct VelocityToAnimator : ISystem
+public partial struct VelocityToAnimatorSystem : ISystem
 {
     public void OnCreate(ref SystemState state) { }
 
@@ -99,14 +96,50 @@ public partial struct VelocityToAnimator : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var dt = SystemAPI.Time.DeltaTime;
-        foreach(var (visuals, input) in SystemAPI.Query<Visuals, Input>()) {
+        var particles = ParticleSystemManager.Instance;
+
+        EntityCommandBuffer cmd = new(Allocator.Temp);
+
+        foreach (var (visuals, input, entity) in SystemAPI.Query<Visuals, Input>().WithEntityAccess()) {
             var anim = visuals.animator;
             anim.Update(dt);
             anim.SetFloat("lookx", input.movement.x);
             anim.SetFloat("looky", input.movement.y);
+
+            if (math.lengthsq(input.movement) > 0.0f) {
+                cmd.AddComponent<Walking>(entity);
+            }
+            else {
+                cmd.RemoveComponent<Walking>(entity);
+            }
         }
     }
+
 }
+
+public partial struct WalkingEffectsSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var dt = SystemAPI.Time.DeltaTime;
+        var particles = ParticleSystemManager.Instance;
+
+        EntityCommandBuffer cmd = new(Allocator.Temp);
+
+        foreach (var (visuals, input, entity) in SystemAPI.Query<Visuals, Input>().WithEntityAccess()) {
+
+
+        }
+    }
+
+}
+
+
+
 
 public partial struct TransformToLookDirection : ISystem
 {
@@ -119,6 +152,7 @@ public partial struct TransformToLookDirection : ISystem
         foreach(var (look, transform) in SystemAPI.Query<RefRW<Look>, LocalToWorld>()) {
             look.ValueRW.value = transform.Forward;
         }
+        
     }
 }
 
@@ -175,13 +209,16 @@ public partial struct FollowPlayerSystem : ISystem
 
         int count = 0;
         var total = float3.zero;
+        var rotation = Quaternion.identity;
         foreach(var transform in SystemAPI.Query<LocalToWorld>().WithAll<Input>()) {
             total += transform.Position;
             count++;
+            rotation = transform.Rotation;
         }
 
         if(count != 0) {
             target.SetPosition(total / count);
+            target.SetRotation(rotation);
         }
     }
 }
@@ -195,12 +232,16 @@ public partial struct InputToDodgeSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var dt = SystemAPI.Time.DeltaTime;
+
+        var particle = ParticleSystemManager.Instance;
+
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (dodge, input, visuals, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Visuals>().WithNone<Dodging>().WithEntityAccess()) {
+        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Dodge>, Input, Visuals, LocalToWorld>().WithNone<Dodging>().WithEntityAccess()) {
             var time = dodge.ValueRO.time - dt;
             if(time <= 0.0f && input.justDodged) {
                 dodge.ValueRW.time += dodge.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Dodging { time = dodge.ValueRO.dodgeTime });
+
                 visuals.animator.SetBool("dodge", true);
             }
             dodge.ValueRW.time = math.max(time, 0.0f);
@@ -227,6 +268,8 @@ public partial struct DodgingSystem : ISystem
             var time = dodging.ValueRO.time - dt;
             if (time <= 0.0f) {
                 entities.Add(entity);
+
+
                 visuals.animator.SetBool("dodge", false);
             }
             dodging.ValueRW.time = math.max(time, 0.0f);
