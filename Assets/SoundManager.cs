@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Entities;
+using System;
 
 [System.Serializable]
 public struct NamedSound
@@ -24,6 +25,7 @@ public class SoundManager : MonoBehaviour, IComponentData
     private void Awake()
     {
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        query = manager.CreateEntityQuery(typeof(SoundManager));
         manager.CreateSingleton(this, gameObject.name);
 
         foreach (var item in sounds) {
@@ -31,7 +33,6 @@ public class SoundManager : MonoBehaviour, IComponentData
             //instancesParticleSystems.Add(item.name, new());
         }
 
-        query = manager.CreateEntityQuery(typeof(ParticleSystemManager));
     }
 
     private IEnumerator PlayAndCleanup(string name, Vector3 at, Quaternion rot, float volume)
@@ -41,14 +42,21 @@ public class SoundManager : MonoBehaviour, IComponentData
             source.clip = audioClipLookup[name];
             source.loop = false;
             source.volume = volume;
-
-            source.Play();
+            
             source.transform.position = at;
             source.transform.rotation = rot;
-            yield return new WaitWhile(() => source != null && source.isPlaying);
+            
+            source.Play();
+
+            var wait = new WaitWhile(() => source != null && source.isPlaying);
+            yield return wait;
+
             if (source != null) {
                 DestroyImmediate(source.gameObject);
             }
+
+
+
         }
     }
 

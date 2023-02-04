@@ -33,22 +33,36 @@ public struct Look : IComponentData
     public float3 value;
 }
 
-public struct WalkingVFX : IComponentData
+public struct WalkingFX : IComponentData
 {
     public FixedString128Bytes vfxName;
     public int handle;
+
+    public float timer;
+
+    public FixedList512Bytes<FixedString128Bytes> sounds;
 }
 
-public struct HitVFX : IComponentData
+public struct HitFX : IComponentData
 {
     public FixedString128Bytes vfxName;
     public int handle;
+
+    public float timer;
+
+    public FixedList512Bytes<FixedString128Bytes> mildSounds;
+
+    public FixedList512Bytes<FixedString128Bytes> strongSounds;
 }
 
-public struct AttackVFX : IComponentData
+public struct AttackFX : IComponentData
 {
     public FixedString128Bytes vfxName;
     public int handle;
+
+    public float timer;
+
+    public FixedList512Bytes<FixedString128Bytes> swingSounds;
 }
 
 public struct Dodge : IComponentData
@@ -155,11 +169,6 @@ public class Anim : IComponentData
 {
     public Animator animator;
 }
-
-//public class TransformContext : IComponentData
-//{
-//    public Transform transform;
-//}
 
 public class SkinnedMesh : IComponentData 
 {

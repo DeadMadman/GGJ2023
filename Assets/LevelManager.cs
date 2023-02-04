@@ -74,9 +74,15 @@ public class LevelManager : MonoBehaviour, IComponentData
 
         var trees = Create("Tree", GridToWorld(5, 1, 5), Quaternion.identity, new Vector3Int(16, 1, 12));
         manager.AddComponent<Tree>(trees.AsArray());
-        foreach(var entity in trees) {
+        var mildSound = new FixedList512Bytes<FixedString128Bytes>();
+        mildSound.Add("Hit");
+
+        var strongSound = new FixedList512Bytes<FixedString128Bytes>();
+        strongSound.Add("Explosion");
+
+        foreach (var entity in trees) {
             manager.AddComponentData(entity, new VisuallyCulled { distance = 7.5f, cutoffDistance = 2.5f });
-            manager.AddComponentData(entity, new HitVFX { vfxName = "Explosion" });
+            manager.AddComponentData(entity, new HitFX { vfxName = "Explosion", mildSounds = mildSound, strongSounds = strongSound });
             manager.AddComponentData(entity, new Health { health = 1 });
         }
         manager.AddComponent<Attackable>(trees);

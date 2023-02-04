@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
@@ -24,8 +25,14 @@ public class EnemyTree : MonoBehaviour
         manager.AddComponent<Attackable>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
-        manager.AddComponentData(entity, new HitVFX { vfxName = "Explosion" });
+        manager.AddComponentData(entity, new WalkingFX { vfxName = "Walking" });
+
+        var mildSound = new FixedList512Bytes<FixedString128Bytes>();
+        mildSound.Add("Hit");
+
+        var strongSound = new FixedList512Bytes<FixedString128Bytes>();
+        strongSound.Add("Explosion");
+        manager.AddComponentData(entity, new HitFX { vfxName = "Explosion", mildSounds = mildSound, strongSounds = strongSound });
         manager.AddComponentData(entity, new Health { health = 2 });
     }
 

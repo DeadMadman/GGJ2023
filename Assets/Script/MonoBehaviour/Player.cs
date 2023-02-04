@@ -49,8 +49,16 @@ public class Player : MonoBehaviour
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
         manager.AddComponentData(entity, new Attack { attackTime = 0.75f, cooldown = 1.5f, range = 3.0f, angle = 180.0f });
-        manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
-        manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
+
+        var sounds = new FixedList512Bytes<FixedString128Bytes>();
+        sounds.Add("Walking0");
+        sounds.Add("Walking1");
+        sounds.Add("Walking2");
+        manager.AddComponentData(entity, new WalkingFX { vfxName = "Walking", sounds = sounds });
+
+        sounds.Clear();
+        sounds.Add("Attack");
+        manager.AddComponentData(entity, new AttackFX { vfxName = "Axe Swing", swingSounds = sounds });
         manager.AddComponentData(entity, new Look { value = transform.forward });
         manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
 
@@ -174,23 +182,41 @@ public partial struct WalkingEffectsSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
+        var dt = SystemAPI.Time.DeltaTime;
         var particles = ParticleSystemManager.Instance;
+        var sounds = SoundManager.Instance;
 
-
-        foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<WalkingVFX>>()) {
+        foreach (var (transform, velocity, previousVelocity, fx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<WalkingFX>>()) {
             bool isMoving = math.lengthsq(velocity.value) > 0.0f;
             bool wasMoving = math.lengthsq(previousVelocity.value) > 0.0f;
-            ref WalkingVFX vfxRef = ref vfx.ValueRW;
-            var key = vfxRef.vfxName.Value;
+            ref WalkingFX fxRef = ref fx.ValueRW;
+            var key = fxRef.vfxName.Value;
+
+            const float FOODSTEP_SOUND_CD = 0.25f;
+
             if (isMoving && !wasMoving) {
-                vfxRef.handle = particles.Play(key, transform.Position, transform.Rotation);
+                if (fxRef.sounds.Length != 0) {
+                    var name = fxRef.sounds[UnityEngine.Random.Range(0, fxRef.sounds.Length)].Value;
+                    sounds.PlayOnce(name, transform.Position, transform.Rotation);
+                    fxRef.timer = FOODSTEP_SOUND_CD;
+                }
+
+                fxRef.handle = particles.Play(key, transform.Position, transform.Rotation);
             }
             else if (!isMoving && wasMoving) {
-                particles.Stop(vfxRef.handle);
+                particles.Stop(fxRef.handle);
             }
 
             if(isMoving) {
-                particles.Transform(vfxRef.handle, transform.Position, transform.Rotation);
+                if(fxRef.sounds.Length != 0) {
+                    if(fxRef.timer <= 0.0f) {
+                        fxRef.timer += FOODSTEP_SOUND_CD;
+                        var name = fxRef.sounds[UnityEngine.Random.Range(0, fxRef.sounds.Length)].Value;
+                        sounds.PlayOnce(name, transform.Position, transform.Rotation);
+                    }
+                    fxRef.timer -= dt;
+                }
+                particles.Transform(fxRef.handle, transform.Position, transform.Rotation);
             }
         }
     }
@@ -289,7 +315,7 @@ public partial struct InputToAttackSystem : ISystem
     private EntityQuery walkingEnemyQuery;
     public void OnCreate(ref SystemState state) 
     {
-        walkingEnemyQuery = state.GetEntityQuery(typeof(WalkingEnemy));
+        walkingEnemyQuery = state.GetEntityQuery(typeof(WalkingEnemy), typeof(LocalToWorld));
     }
 
     public void OnDestroy(ref SystemState state) { }
@@ -300,11 +326,10 @@ public partial struct InputToAttackSystem : ISystem
         var dt = SystemAPI.Time.DeltaTime;
 
         var particles = ParticleSystemManager.Instance;
-
-        walkingEnemyQuery = state.GetEntityQuery(typeof(WalkingEnemy), typeof(LocalToWorld));
+        var sounds = SoundManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (look, velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Look>, RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackVFX>>().WithNone<Attacking>().WithEntityAccess()) {
+        foreach (var (look, velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Look>, RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackFX>>().WithNone<Attacking>().WithEntityAccess()) {
             var time = attack.ValueRO.time - dt;
             var att = attack.ValueRO;
             
@@ -335,6 +360,8 @@ public partial struct InputToAttackSystem : ISystem
                 attack.ValueRW.time += attack.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Attacking { time = attack.ValueRO.attackTime, angle = att.angle, range = att.range });
 
+                sounds.PlayOnce("Attack", transform.Position + math.float3(0.0f, 1.0f, 0.0f), transform.Rotation, 1.0f);
+
                 visuals.animator.SetBool("attack", true);
                 particles.PlayOnce(attackVfx.vfxName.Value, transform.Position + math.float3(0.0f, 1.0f, 0.0f), transform.Rotation);
             }
@@ -353,11 +380,39 @@ public partial struct OnHitSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var particles = ParticleSystemManager.Instance;
-        foreach(var (transform, attackable, handle) in SystemAPI.Query<LocalToWorld, Attackable, RefRW<HitVFX>>()) {
-            if(attackable.JustAttacked) {
-     
-                particles.PlayOnce(handle.ValueRW.vfxName.Value, transform.Position + math.float3(0.0f, 0.5f, 0.0f), transform.Rotation);
+        var sounds = SoundManager.Instance;
+        foreach (var (fx, attacking) in SystemAPI.Query<AttackFX, Attacking>()) {
+            if (attacking.JustHit) {
 
+
+            }
+        }
+
+        foreach (var (transform, attackable, fx) in SystemAPI.Query<LocalToWorld, Attackable, RefRO<HitFX>>()) {
+            if(attackable.JustAttacked) {
+                var f = fx.ValueRO;
+                particles.PlayOnce(f.vfxName.Value, transform.Position + math.float3(0.0f, 0.5f, 0.0f), transform.Rotation);
+
+                if(!f.mildSounds.IsEmpty) {
+                    sounds.PlayOnce(
+                        f.mildSounds[UnityEngine.Random.Range(0, f.mildSounds.Length)].Value,
+                        transform.Position +
+                        math.float3(0.0f, 0.5f, 0.0f),
+                        transform.Rotation,
+                        1.0f
+                    );
+                }
+
+                if(!f.strongSounds.IsEmpty) {
+                    sounds.PlayOnce(
+                        f.strongSounds[UnityEngine.Random.Range(0, f.strongSounds.Length)].Value,
+                        transform.Position +
+                        math.float3(0.0f, 0.5f, 0.0f),
+                        transform.Rotation,
+                        1.0f
+                    );
+                }
+               
             }
         }
 
@@ -387,7 +442,7 @@ public partial struct KillSystem : ISystem
         foreach (var (anim, entity) in SystemAPI.Query<Anim>().WithAll<Killed>().WithEntityAccess()) {
             GameObject.DestroyImmediate(anim.animator.gameObject);
         }
-        foreach (var (vfx, entity) in SystemAPI.Query<WalkingVFX>().WithAll<Killed>().WithEntityAccess()) {
+        foreach (var (vfx, entity) in SystemAPI.Query<WalkingFX>().WithAll<Killed>().WithEntityAccess()) {
             particles.Stop(vfx.handle);
         }
 
