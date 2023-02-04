@@ -11,7 +11,7 @@ Shader "Custom/ToonSurface"
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType"="AlphaTest" }
         LOD 200
         
         Cull off
@@ -29,7 +29,7 @@ Shader "Custom/ToonSurface"
         
         void vert (inout appdata_full v)
         {
-            v.vertex.xyz += normalize(v.normal) * OutlineWidth;
+            v.vertex.xyz += v.normal * OutlineWidth;
         }
 
         void surf (Input IN, inout SurfaceOutput o)
