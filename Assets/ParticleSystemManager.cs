@@ -45,6 +45,8 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
         system.transform.position = at;
         system.transform.rotation = rot;
         yield return new WaitWhile(() => system.isPlaying);
+        yield return null;
+
         DestroyImmediate(system.gameObject);
     }
 
