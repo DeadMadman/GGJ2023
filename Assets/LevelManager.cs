@@ -75,7 +75,7 @@ public class LevelManager : MonoBehaviour, IComponentData
         var trees = Create("Tree", GridToWorld(5, 1, 5), Quaternion.identity, new Vector3Int(16, 1, 12));
         manager.AddComponent<Tree>(trees.AsArray());
         foreach(var entity in trees) {
-            manager.AddComponentData(entity, new VisuallyCulled { distance = 5.0f, cutoffDistance = 2.5f });
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 7.5f, cutoffDistance = 2.5f });
             manager.AddComponentData(entity, new HitVFX { vfxName = "Explosion" });
         }
         manager.AddComponent<Attackable>(trees);
