@@ -55,25 +55,30 @@ public struct Input : IComponentData
     public bool plantButton;
 }
 
+public struct Instanced : IComponentData
+{
+
+}
+
 public class Anim : IComponentData
 {
     public Animator animator;
 }
 
-public class TransformContext : IComponentData
-{
-    public Transform transform;
-}
+//public class TransformContext : IComponentData
+//{
+//    public Transform transform;
+//}
 
-public class GameObjectResource : IComponentData
-{
-    public GameObject resource;
-}
-
-public class Visuals : IComponentData
+public class Visuals : IComponentData, IEquatable<Visuals>
 {
     public MeshFilter filter;
     public MeshRenderer renderer;
+
+    public bool Equals(Visuals other)
+    {
+        return filter == other.filter && renderer == other.renderer;
+    }
 }
 
 public struct GrowthComponents :  IComponentData

@@ -11,10 +11,14 @@ public class MainCamera : MonoBehaviour, IComponentData
 
     public static MainCamera Instance => query.GetSingleton<MainCamera>();
 
+    public Camera camera;
+
     private void Awake()
     {
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
         manager.CreateSingleton(this, gameObject.name);
         query = manager.CreateEntityQuery(typeof(MainCamera));
+
+        camera = GetComponent<Camera>();
     }
 }
