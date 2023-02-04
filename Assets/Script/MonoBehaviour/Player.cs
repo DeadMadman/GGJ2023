@@ -5,9 +5,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.Jobs;
-using UnityEngine.Windows;
 
 public class Player : MonoBehaviour
 {
