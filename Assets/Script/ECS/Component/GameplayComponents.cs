@@ -49,6 +49,7 @@ public class Visuals : IComponentData
 {
     public Mesh mesh;
     public Material material;
+    public Animator animator;
 }
 
 

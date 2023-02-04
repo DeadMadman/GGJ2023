@@ -34,6 +34,27 @@ public class Player : MonoBehaviour
         } 
     }
 
+    public void BeGrey()
+    {
+        MaterialInstance.color = Color.grey;
+    }
+    public void BeRed()
+    {
+        MaterialInstance.color = Color.red;
+    }
+    public void BeBlue()
+    {
+        MaterialInstance.color = Color.blue;
+    }
+    public void BeGreen()
+    {
+        MaterialInstance.color = Color.green;
+    }
+    public void BeMagenta()
+    {
+        MaterialInstance.color = Color.magenta;
+    }
+
     private void OnDestroy()
     {
         if(instance != null) {
@@ -45,14 +66,15 @@ public class Player : MonoBehaviour
     {
         public override void Bake(Player authoring)
         {
+            var animator = authoring.GetComponent<Animator>();
+            
             AddComponent<Movement>();
-            AddComponentObject(new Visuals { mesh = authoring.Mesh, material = authoring.MaterialInstance });
+            AddComponentObject(new Visuals { mesh = authoring.Mesh, material = authoring.MaterialInstance, animator = animator });
             AddComponent(new Speed { value = authoring.speed });
             AddComponent<Input>();
             AddComponent<Velocity>();
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
-
         }
     }
     // Start is called before the first frame update
@@ -65,6 +87,24 @@ public class Player : MonoBehaviour
     void Update()
     {
         
+    }
+}
+
+public partial struct VelocityToAnimator : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var dt = SystemAPI.Time.DeltaTime;
+        foreach(var (visuals, input) in SystemAPI.Query<Visuals, Input>()) {
+            var anim = visuals.animator;
+            anim.Update(dt);
+            anim.SetFloat("lookx", input.movement.x);
+            anim.SetFloat("looky", input.movement.y);
+        }
     }
 }
 
@@ -125,14 +165,9 @@ public partial struct ApplyVelocitySystem : ISystem
 
 public partial struct FollowPlayerSystem : ISystem
 {
-    public void OnCreate(ref SystemState state)
-    {
+    public void OnCreate(ref SystemState state) { }
 
-    }
-
-    public void OnDestroy(ref SystemState state)
-    {
-    }
+    public void OnDestroy(ref SystemState state) { }
 
     public void OnUpdate(ref SystemState state)
     {
@@ -153,15 +188,9 @@ public partial struct FollowPlayerSystem : ISystem
 
 public partial struct InputToDodgeSystem : ISystem
 {
-    public void OnCreate(ref SystemState state)
-    {
+    public void OnCreate(ref SystemState state) { }
 
-    }
-
-    public void OnDestroy(ref SystemState state)
-    {
-
-    }
+    public void OnDestroy(ref SystemState state) { }
 
     public void OnUpdate(ref SystemState state)
     {
@@ -172,7 +201,7 @@ public partial struct InputToDodgeSystem : ISystem
             if(time <= 0.0f && input.justDodged) {
                 dodge.ValueRW.time += dodge.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Dodging { time = dodge.ValueRO.dodgeTime });
-                visuals.material.color = Color.red;
+                visuals.animator.SetBool("dodge", true);
             }
             dodge.ValueRW.time = math.max(time, 0.0f);
         }
@@ -182,15 +211,9 @@ public partial struct InputToDodgeSystem : ISystem
 
 public partial struct DodgingSystem : ISystem
 {
-    public void OnCreate(ref SystemState state)
-    {
+    public void OnCreate(ref SystemState state) { }
 
-    }
-
-    public void OnDestroy(ref SystemState state)
-    {
-
-    }
+    public void OnDestroy(ref SystemState state) { }
 
     public void OnUpdate(ref SystemState state)
     {
@@ -204,7 +227,7 @@ public partial struct DodgingSystem : ISystem
             var time = dodging.ValueRO.time - dt;
             if (time <= 0.0f) {
                 entities.Add(entity);
-                visuals.material.color = Color.blue;
+                visuals.animator.SetBool("dodge", false);
             }
             dodging.ValueRW.time = math.max(time, 0.0f);
         }
