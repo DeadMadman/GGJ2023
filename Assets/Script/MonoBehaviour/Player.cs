@@ -84,7 +84,6 @@ public class Player : MonoBehaviour
             AddComponent<Input>();
             AddComponent<PreviousVelocity>();
             AddComponent<Velocity>();
-            //AddComponentObject(new TransformContext { transform = authoring.transform });
             AddComponent(new WalkingVFX { vfxName = "Walking" });
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
