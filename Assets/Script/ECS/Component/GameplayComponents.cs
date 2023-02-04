@@ -159,11 +159,11 @@ public class Visuals : IComponentData, IEquatable<Visuals>
 
 public class PlantableTree : IComponentData
 {
-    public GameObject prefab;
+    public Entity entity;
 }
 public struct GrowthComponent :  IComponentData
 {
     public float growthSpeedMultiplier; // Increases when fertilized default should be 1
     public float timeTillFullyGrown;
-    //public int growthLevel;
+    public float exclusionRadius;
 }

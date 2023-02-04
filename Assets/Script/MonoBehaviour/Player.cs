@@ -55,7 +55,7 @@ public class Player : MonoBehaviour
         manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
         manager.AddComponentData(entity, new Look { value = transform.forward });
         manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
-        manager.AddComponentData(entity, new PlantableTree { prefab = treePrefab });
+        manager.AddComponentData(entity, new PlantableTree { entity = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntity() });
     }
 
     //public class Baker : Baker<Player>
@@ -457,12 +457,12 @@ public partial struct PlantingSystem : ISystem
         foreach (var (input, plantingPosition, tree) in SystemAPI.Query<Input, RefRO<LocalTransform>, PlantableTree>())
 		{
             if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
-			{
-                GameObject newTree = LevelManager.Instantiate(tree.prefab);
-                Vector3 pos = plantingPosition.ValueRO.Position;
+            {
+                float3 pos = plantingPosition.ValueRO.Position;
                 pos.y = 0.5f;
-                newTree.transform.position = pos;
-
+                Entity newTree = state.EntityManager.Instantiate(tree.entity);
+                // It says that the new entity doesn't have a LocalTransform, this was not an issue before.
+                state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
 			}
 		}
     }
