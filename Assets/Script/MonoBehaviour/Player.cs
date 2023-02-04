@@ -5,6 +5,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
+using UnityEngine.Experimental.GlobalIllumination;
 
 public class Player : MonoBehaviour
 {
@@ -84,8 +85,8 @@ public class Player : MonoBehaviour
             AddComponent<Input>();
             AddComponent<PreviousVelocity>();
             AddComponent<Velocity>();
-            AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f });
-            AddComponent(new WalkingVFX { vfxName = "Walking" });
+            AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+            AddComponent(new VFXHandle { vfxName = "Walking" });
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
             
@@ -174,10 +175,10 @@ public partial struct WalkingEffectsSystem : ISystem
         var particles = ParticleSystemManager.Instance;
 
 
-        foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<WalkingVFX>>()) {
+        foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<VFXHandle>>()) {
             bool isMoving = math.lengthsq(velocity.value) > 0.0f;
             bool wasMoving = math.lengthsq(previousVelocity.value) > 0.0f;
-            ref WalkingVFX vfxRef = ref vfx.ValueRW;
+            ref VFXHandle vfxRef = ref vfx.ValueRW;
             var key = vfxRef.vfxName.Value;
             if (isMoving && !wasMoving) {
                 vfxRef.handle = particles.Play(key, transform.Position, transform.Rotation);
@@ -292,17 +293,38 @@ public partial struct InputToAttackSystem : ISystem
         var particle = ParticleSystemManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (dodge, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Attack>, Input, Anim, LocalToWorld>().WithNone<Attacking>().WithEntityAccess()) {
-            var time = dodge.ValueRO.time - dt;
+        foreach (var (attack, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Attack>, Input, Anim, LocalToWorld>().WithNone<Attacking>().WithEntityAccess()) {
+            var time = attack.ValueRO.time - dt;
+            var att = attack.ValueRO;
             if (time <= 0.0f && input.justAttacked) {
-                dodge.ValueRW.time += dodge.ValueRO.cooldown;
-                cmd.AddComponent(entity, new Attacking { time = dodge.ValueRO.attackTime });
+                attack.ValueRW.time += attack.ValueRO.cooldown;
+                cmd.AddComponent(entity, new Attacking { time = attack.ValueRO.attackTime, angle = att.angle, range = att.range });
 
                 visuals.animator.SetBool("attack", true);
             }
-            dodge.ValueRW.time = math.max(time, 0.0f);
+            attack.ValueRW.time = math.max(time, 0.0f);
         }
         cmd.Playback(state.EntityManager);
+    }
+}
+
+public partial struct OnHitSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var particles = ParticleSystemManager.Instance;
+        foreach(var (transform, attackable, handle) in SystemAPI.Query<LocalToWorld, Attackable, RefRW<VFXHandle>>()) {
+            if(attackable.JustAttacked) {
+                handle.ValueRW.handle = particles.Play(handle.ValueRW.vfxName.Value, transform.Position, transform.Rotation);
+            }
+            else if(attackable.StoppedAttacked){
+                particles.Stop(handle.ValueRW.vfxName.Value, handle.ValueRW.handle);
+            }
+        }
     }
 }
 
@@ -335,18 +357,28 @@ public partial struct AttackSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var dt = SystemAPI.Time.DeltaTime;
-        NativeList<Entity> entities = new NativeList<Entity>(Allocator.Temp);
-        foreach (var (attack, look, lhs) in SystemAPI.Query<Attack, Look, LocalToWorld>().WithAll<Attacking>()) {
-            foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
-                ref var att = ref attackable.ValueRW;
-                att.prevState = att.currState;
-                if(InFOV(lhs.Position, look.value, rhs.Position, attack.range, 90.0f)) {
 
-                }
-            }
-            //velocity.ValueRW.value = look.value * dodge.dodgeSpeed;
+        foreach (var attackable in SystemAPI.Query<RefRW<Attackable>>()) {
+            ref var att = ref attackable.ValueRW;
+            att.prevState = att.currState;
+            att.currState = false;
         }
 
+        foreach (var (attackRef, look, lhs) in SystemAPI.Query<RefRW<Attacking>, Look, LocalToWorld>()) {
+            ref var attack = ref attackRef.ValueRW;
+            attack.prevHit = attack.currHit;
+            attack.currHit = false;
+
+            foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
+                ref var att = ref attackable.ValueRW;
+                if(InFOV(lhs.Position, look.value, rhs.Position, attack.range, attack.angle)) {
+                    att.currState = true;
+                    attack.currHit = true;
+                }
+            }
+        }
+
+        NativeList<Entity> entities = new NativeList<Entity>(Allocator.Temp);
         foreach (var (attacking, visuals, entity) in SystemAPI.Query<RefRW<Attacking>, Anim>().WithEntityAccess()) {
             var time = attacking.ValueRO.time - dt;
             if (time <= 0.0f) {
@@ -354,8 +386,6 @@ public partial struct AttackSystem : ISystem
 
                 visuals.animator.SetBool("attack", false);
             }
-            GraphicsBuffer graphicsBuffer;
-
 
             attacking.ValueRW.time = math.max(time, 0.0f);
         }

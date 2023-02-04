@@ -23,7 +23,7 @@ public struct Look : IComponentData
     public float3 value;
 }
 
-public struct WalkingVFX : IComponentData
+public struct VFXHandle : IComponentData
 {
     public FixedString128Bytes vfxName;
     public int handle;
@@ -60,6 +60,7 @@ public struct Attack : IComponentData
 {
     public float cooldown;
     public float attackTime;
+    public float angle;
     public float range;
     public float time;
 }
@@ -67,6 +68,8 @@ public struct Attack : IComponentData
 public struct Attacking : IComponentData
 {
     public float time;
+    public float angle;
+    public float range;
 
     public bool prevHit;
     public bool currHit;

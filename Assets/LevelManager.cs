@@ -76,7 +76,9 @@ public class LevelManager : MonoBehaviour, IComponentData
         manager.AddComponent<Tree>(trees.AsArray());
         foreach(var entity in trees) {
             manager.AddComponentData(entity, new VisuallyCulled { distance = 6.0f, cutoffDistance = 3.0f });
+            manager.AddComponentData(entity, new VFXHandle { vfxName = "Walking" });
         }
+        manager.AddComponent<Attackable>(trees);
     }
 
     public NativeList<Entity> Create(string name, Vector3 at, Quaternion rotation, Vector3Int count)
