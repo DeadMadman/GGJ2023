@@ -84,11 +84,10 @@ public class Player : MonoBehaviour
             AddComponent<Input>();
             AddComponent<PreviousVelocity>();
             AddComponent<Velocity>();
-            AddComponentObject(new TransformContext { transform = authoring.transform });
+            //AddComponentObject(new TransformContext { transform = authoring.transform });
             AddComponent(new WalkingVFX { vfxName = "Walking" });
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
-            
         }
     }
 }
@@ -142,20 +141,20 @@ public partial struct UpdateVisuals : ISystem
 }
 
 
-public partial struct UpdateTransformContext : ISystem
-{
-    public void OnCreate(ref SystemState state) { }
+//public partial struct UpdateTransformContext : ISystem
+//{
+//    public void OnCreate(ref SystemState state) { }
 
-    public void OnDestroy(ref SystemState state) { }
+//    public void OnDestroy(ref SystemState state) { }
 
-    public void OnUpdate(ref SystemState state)
-    {
-        foreach (var (context, transform) in SystemAPI.Query<TransformContext, LocalToWorld>()) {
-            context.transform.localPosition = transform.Position;
-            context.transform.localRotation = transform.Rotation;
-        }
-    }
-}
+//    public void OnUpdate(ref SystemState state)
+//    {
+//        foreach (var (context, transform) in SystemAPI.Query<TransformContext, LocalToWorld>()) {
+//            context.transform.localPosition = transform.Position;
+//            context.transform.localRotation = transform.Rotation;
+//        }
+//    }
+//}
 
 
 public partial struct WalkingEffectsSystem : ISystem
@@ -167,6 +166,7 @@ public partial struct WalkingEffectsSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var particles = ParticleSystemManager.Instance;
+
 
         foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<WalkingVFX>>()) {
             bool isMoving = math.lengthsq(velocity.value) > 0.0f;

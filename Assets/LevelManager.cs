@@ -4,13 +4,18 @@ using UnityEngine;
 using Unity.Entities;
 using Unity.Collections;
 using Unity.Transforms;
+using UnityEngine.InputSystem;
 
 [System.Serializable]
 public struct BlockData
 {
     public string name;
-    public Mesh mesh;
-    public Material material;
+    public GameObject prefab;
+}
+
+public struct Ground : IComponentData
+{
+
 }
 
 public class LevelManager : MonoBehaviour, IComponentData
@@ -22,16 +27,14 @@ public class LevelManager : MonoBehaviour, IComponentData
 
     [SerializeField] private List<BlockData> blockData;
 
-    private Dictionary<string, Mesh> meshes = new();
-    private Dictionary<string, Material> materials = new();
+    private Dictionary<string, BlockData> resources = new();
 
     private EntityArchetype cubeArchetype;
 
     private void Awake()
     {
         foreach(var block in blockData) {
-            meshes.Add(block.name, block.mesh);
-            materials.Add(block.name, block.material);
+            resources.Add(block.name, block);
         }
 
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
@@ -39,28 +42,43 @@ public class LevelManager : MonoBehaviour, IComponentData
         manager.CreateSingleton(this, gameObject.name);
         query = manager.CreateEntityQuery(typeof(LevelManager));
 
-        cubeArchetype = manager.CreateArchetype(typeof(Visuals), typeof(LocalToWorld), typeof(LocalTransform), typeof(WorldTransform), typeof(ParentTransform));
+        cubeArchetype = manager.CreateArchetype(typeof(Instanced), typeof(Visuals), typeof(LocalToWorld), typeof(LocalTransform), typeof(WorldTransform), typeof(ParentTransform));
 
-        CreateCube("Ground", Vector3.zero, Quaternion.identity);
+        CreateGround(Vector3.zero, Quaternion.identity, new Vector3Int(64, 1, 64));
     }
 
-    public void CreateCube(string name, Vector3 at, Quaternion rotation)
+    public void CreateGround(Vector3 at, Quaternion rotation, Vector3Int count)
     {
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        var entity = manager.CreateEntity(cubeArchetype);
 
-        LocalTransform transform = new();
-        transform.Position = at;
-        transform.Rotation = rotation;
-        transform.Scale = 1.0f;
+        var resource = resources["Ground"];
+        var go = resource.prefab;
 
-        //Visuals visuals = new Visuals();
-        //visuals.material = materials[name];
-        //visuals.mesh = meshes[name];
+        Visuals visuals = new Visuals();
+        visuals.filter = go.GetComponent<MeshFilter>();
+        visuals.renderer = go.GetComponent<MeshRenderer>();
+        var offset = visuals.filter.sharedMesh.bounds.size;
+        for (int z = 0; z < count.z; z++) {
+            for (int y = 0; y < count.y; y++) {
+                for (int x = 0; x < count.x; x++) {
+                    var position = at + Vector3.Scale(new Vector3(x, y, z), offset * 1.0f);
 
-        //manager.SetComponentData(entity, visuals);
-        manager.SetComponentData(entity, transform);
+                    var entity = manager.CreateEntity(cubeArchetype);
 
+                    manager.AddComponent<Ground>(entity);
+
+                    LocalTransform transform = new();
+                    transform.Position = position;
+                    transform.Rotation = rotation;
+                    transform.Scale = 1.0f;
+
+
+                    manager.SetComponentData(entity, visuals);
+                    manager.SetComponentData(entity, transform);
+                }
+            }
+        }
+        //manager.AddComponentData(entity, new TransformContext { transform = go.transform });
     }
 
     private void OnDestroy()
