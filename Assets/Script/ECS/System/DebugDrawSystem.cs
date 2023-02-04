@@ -11,6 +11,10 @@ public partial class DrawSystem : SystemBase
 
     private void Draw(NativeList<LocalToWorld> list, Mesh mesh, Material[] materials)
     {
+        if(list.IsEmpty) {
+            return;
+        }
+
         var transforms = list.AsArray().Reinterpret<Matrix4x4>();
         for (int i = 0; i < mesh.subMeshCount; i++) {
             Graphics.RenderMeshInstanced(new RenderParams(materials[i]), mesh, i, transforms, transforms.Length);
@@ -20,6 +24,7 @@ public partial class DrawSystem : SystemBase
 
     protected override void OnUpdate()
     {
+        var target = CameraTarget.Instance;
         var cam = MainCamera.Instance;
         var planes = GeometryUtility.CalculateFrustumPlanes(cam.camera);
         var level = LevelManager.Instance;
@@ -47,13 +52,12 @@ public partial class DrawSystem : SystemBase
             if (sharedMaterials != null && mesh != null) {
                 foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Instanced, Ground>()) {
                     var bounds = level.GetBoundsWith(transform);
+                    bounds.center = Vector3.LerpUnclamped(target.transform.position, bounds.center, 1.25f);
                     if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
                         list.Add(transform);
                     }
                 }
             }
-
-            var transforms = list.AsArray().Reinterpret<Matrix4x4>();
             Draw(list, mesh, sharedMaterials);
         }
 
@@ -67,16 +71,13 @@ public partial class DrawSystem : SystemBase
             if (sharedMaterials != null && mesh != null) {
                 foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Instanced, Tree>()) {
 
-                   var bounds = level.GetBoundsWith(transform);
-                    bounds.center += (Vector3)transform.Position;
-
+                    var bounds = level.GetBoundsWith(transform);
+                    bounds.center = Vector3.LerpUnclamped(target.transform.position, bounds.center, 1.5f);
                     if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
                         list.Add(transform);
                     }
                 }
             }
-
-            var transforms = list.AsArray().Reinterpret<Matrix4x4>();
             Draw(list, mesh, sharedMaterials);
         }
         //var groundResource = LevelManager.Instance.Get("Ground");
