@@ -46,8 +46,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a732abd7850135f4cb8b812acb069f7e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  prefab: {fileID: 0}
   exclusionRadius: 1
+  timeTillFullyGrown: 1
 --- !u!33 &5276394543941871301
 MeshFilter:
   m_ObjectHideFlags: 0

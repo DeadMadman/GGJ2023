@@ -90,7 +90,7 @@ public class Player : MonoBehaviour
             AddComponent(new Look { value = authoring.transform.forward });
             AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
             
-            AddComponentObject(new PlantableTree { prefab = authoring.treePrefab });
+            AddComponentObject(new PlantableTree { prefab = GetEntity(authoring.treePrefab) });
         }
     }
 }
@@ -462,11 +462,10 @@ public partial struct PlantingSystem : ISystem
 		{
             if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
 			{
-                GameObject newTree = LevelManager.Instantiate(tree.prefab);
+                Entity newTree = state.EntityManager.Instantiate(tree.prefab);
                 Vector3 pos = plantingPosition.ValueRO.Position;
                 pos.y = 0.5f;
-                newTree.transform.position = pos;
-
+                state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
 			}
 		}
     }
