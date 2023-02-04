@@ -4,6 +4,7 @@ using UnityEngine;
 using Unity.Entities;
 using UnityEngine.Rendering.VirtualTexturing;
 using System;
+using UnityEngine.UIElements;
 
 [System.Serializable]
 public struct NamedParticleSystem
@@ -44,10 +45,10 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
         system.Play();
         system.transform.position = at;
         system.transform.rotation = rot;
-        yield return new WaitWhile(() => system.isPlaying);
-        yield return null;
-
-        DestroyImmediate(system.gameObject);
+        yield return new WaitWhile(() => system != null && system.isPlaying);
+        if(system != null) {
+            DestroyImmediate(system.gameObject);
+        }
     }
 
     public void PlayOnce(string name, Vector3 at, Quaternion rot)
