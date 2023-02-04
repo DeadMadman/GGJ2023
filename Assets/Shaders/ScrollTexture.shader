@@ -56,8 +56,9 @@ Shader "Unlit/ScrollTexture"
                 float2 projection = i.worldPos.xy / 300;
                 //Scroll *= _Time.z;
                 fixed4 col = tex2D(MainTex, projection + Scroll);
-   
-                return col;
+
+                fixed4 newCol = fixed4(col.r, col.g, col.b, col.a) * fixed4(0, 0, 0, 0.6f);
+                return newCol;
             }
             ENDCG
         }
