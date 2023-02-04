@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: ToonMaterial 1
-  m_Shader: {fileID: 4800000, guid: b92092f3eadd79c41a98ef33f6753761, type: 3}
+  m_Shader: {fileID: 4800000, guid: 00254f62fc90bf542a3a986f59bebcb4, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -24,6 +24,10 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - MainTexture:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - NormalTex:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -73,7 +77,11 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - ColorEnd: 0.8
+    - ColorStart: 0.75
     - OutlineWidth: 0.001
+    - Scale: 0
+    - Strength: 0
     - _BumpScale: 1
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
@@ -91,7 +99,8 @@ Material:
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - MainColor: {r: 0.63057077, g: 1, b: 0.57254905, a: 1}
+    - MainColor: {r: 0.4392157, g: 0.32156864, b: 0.16078432, a: 1}
+    - MainColor2: {r: 0.48235294, g: 0.60784316, b: 0.27450982, a: 1}
     - OutlineColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
