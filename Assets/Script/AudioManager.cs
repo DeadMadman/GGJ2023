@@ -6,9 +6,20 @@ public class AudioManager : MonoBehaviour
 {
     private AudioManager manager;
 
-    void PlayClip(AudioClip clip)
+    void PlayAudio()
     {
-        
+        StartCoroutine(PlayClip());
+    }
+    
+    IEnumerator PlayClip()
+    {
+        AudioSource audioSource = GetComponent<AudioSource>();
+        audioSource.Play();
+        while (audioSource.isPlaying)
+        {
+            yield return null;
+        }
+        Destroy(audioSource);
     }
 
 
