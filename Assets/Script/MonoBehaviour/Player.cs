@@ -48,7 +48,7 @@ public class Player : MonoBehaviour
         manager.AddComponent<Input>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new Attack { attackTime = 0.25f, cooldown = 1.5f, range = 2.5f, angle = 180.0f });
+        manager.AddComponentData(entity, new Attack { attackTime = 0.75f, cooldown = 1.5f, range = 3.0f, angle = 180.0f });
         manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
         manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
         manager.AddComponentData(entity, new Look { value = transform.forward });
@@ -435,16 +435,18 @@ public partial struct AttackSystem : ISystem
             att.currState = false;
         }
 
-        foreach (var (attackRef, look, lhs) in SystemAPI.Query<RefRW<Attacking>, Look, LocalToWorld>()) {
+        foreach (var (attackRef, a, look, lhs) in SystemAPI.Query<RefRW<Attacking>, Attack, Look, LocalToWorld>()) {
             ref var attack = ref attackRef.ValueRW;
             attack.prevHit = attack.currHit;
             attack.currHit = false;
-
-            foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
-                ref var att = ref attackable.ValueRW;
-                if(InFOV(lhs.Position, look.value, rhs.Position, 0.5f, attack.range, attack.angle)) {
-                    att.currState = true;
-                    attack.currHit = true;
+            
+            if((a.attackTime - attack.time) < 0.10f) {
+                foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
+                    ref var att = ref attackable.ValueRW;
+                    if(InFOV(lhs.Position, look.value, rhs.Position, 0.25f, attack.range, attack.angle)) {
+                        att.currState = true;
+                        attack.currHit = true;
+                    }
                 }
             }
         }
