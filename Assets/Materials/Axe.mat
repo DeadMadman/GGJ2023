@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Ground
+  m_Name: Axe
   m_Shader: {fileID: 4800000, guid: b92092f3eadd79c41a98ef33f6753761, type: 3}
   m_Parent: {fileID: 2100000, guid: e4e438dd6f75111459aec027618f3e29, type: 2}
   m_ModifiedSerializedProperties: 0
@@ -22,10 +22,19 @@ Material:
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - MainTexture:
+        m_Texture: {fileID: 2800000, guid: a53248d9476f5da4197cb691e668b3db, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - NormalTex:
+        m_Texture: {fileID: 2800000, guid: a38607aed5af8f6458ac4f4083526bbe, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - OutlineWidth: 0.1
+    - OutlineWidth: 0.001
+    - Strength: 0.1
     m_Colors:
-    - MainColor: {r: 0.70745903, g: 1, b: 0.41037738, a: 1}
+    - MainColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
