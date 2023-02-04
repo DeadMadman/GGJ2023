@@ -6,7 +6,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Scenes;
 using Unity.Transforms;
-using UnityEditor.PackageManager;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -59,7 +58,7 @@ public class Player : MonoBehaviour
         manager.AddComponent<Input>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 180.0f });
         manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
         manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
         manager.AddComponentData(entity, new Look { value = transform.forward });
@@ -116,7 +115,7 @@ public partial struct VelocityToAnimatorSystem : ISystem
         foreach (var (visuals, input) in SystemAPI.Query<Anim, Input>()) {
             var anim = visuals.animator;
             anim.SetFloat("lookx", input.movement.x);
-            anim.SetFloat("looky", input.movement.y);
+            anim.SetFloat("looky", input.movement.z);
         }
     }
 
