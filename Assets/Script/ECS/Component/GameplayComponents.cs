@@ -23,12 +23,23 @@ public struct Look : IComponentData
     public float3 value;
 }
 
-public struct VFXHandle : IComponentData
+public struct WalkingVFX : IComponentData
 {
     public FixedString128Bytes vfxName;
     public int handle;
 }
 
+public struct HitVFX : IComponentData
+{
+    public FixedString128Bytes vfxName;
+    public int handle;
+}
+
+public struct AttackVFX : IComponentData
+{
+    public FixedString128Bytes vfxName;
+    public int handle;
+}
 
 public struct Dodge : IComponentData
 {
@@ -129,6 +140,11 @@ public class Anim : IComponentData
 //{
 //    public Transform transform;
 //}
+
+public class SkinnedMesh : IComponentData 
+{
+    public SkinnedMeshRenderer skinnedMeshRenderer;
+}
 
 public class Visuals : IComponentData, IEquatable<Visuals>
 {

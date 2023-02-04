@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Entities;
 using UnityEngine.Rendering.VirtualTexturing;
+using System;
 
 [System.Serializable]
 public struct NamedParticleSystem
@@ -21,7 +22,7 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
     [SerializeField] private List<NamedParticleSystem> particleSystems;
     private Dictionary<string, ParticleSystem> particleSystemsLookup = new();
 
-    private Dictionary<string, Dictionary<int, ParticleSystem>> instancesParticleSystems = new();
+    private Dictionary<int, ParticleSystem> instancesParticleSystems = new();
     private List<int> freeList = new();
 
     private void Awake()
@@ -31,27 +32,40 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
 
         foreach(var item in particleSystems) {
             particleSystemsLookup.Add(item.name, item.particleSystem);
-            instancesParticleSystems.Add(item.name, new());
+            //instancesParticleSystems.Add(item.name, new());
         }
 
         query = manager.CreateEntityQuery(typeof(ParticleSystemManager));
+    }
+
+    private IEnumerator PlayAndCleanup(string name, Vector3 at, Quaternion rot)
+    {
+        var system = Instantiate(particleSystemsLookup[name]);
+        system.Play();
+        system.transform.position = at;
+        system.transform.rotation = rot;
+        yield return new WaitWhile(() => system.isPlaying);
+        DestroyImmediate(system.gameObject);
+    }
+
+    public void PlayOnce(string name, Vector3 at, Quaternion rot)
+    {
+        StartCoroutine(PlayAndCleanup(name, at, rot));
     }
 
     public int Play(string name, Vector3 at, Quaternion rot)
     {
         var system = Instantiate(particleSystemsLookup[name]);
 
-        var instances = instancesParticleSystems[name];
-        
         int index;
         if(freeList.Count == 0) {
-            index = instances.Count;
+            index = instancesParticleSystems.Count;
         }
         else {
             index = freeList[freeList.Count - 1];
-            freeList.RemoveAt(index);
+            freeList.RemoveAt(freeList.Count - 1);
         }
-        instances[index] = system;
+        instancesParticleSystems[index] = system;
 
         system.Play(true);
         system.transform.position = at;
@@ -59,23 +73,23 @@ public class ParticleSystemManager : MonoBehaviour, IComponentData
         return index;
     }
 
-    public void Transform(string name, int index, Vector3 at, Quaternion rot)
+
+
+    public void Transform(int index, Vector3 at, Quaternion rot)
     {
-        var instances = instancesParticleSystems[name];
-        if (instances.ContainsKey(index)) {
-            var system = instances[index];
+        if (instancesParticleSystems.ContainsKey(index)) {
+            var system = instancesParticleSystems[index];
             system.transform.position = at;
             system.transform.rotation = rot;
         }
     }
 
 
-    public void Stop(string name, int index)
+    public void Stop(int index)
     {
-        var instances = instancesParticleSystems[name];
-        if(instances.ContainsKey(index)) {
-            DestroyImmediate(instances[index].gameObject);
-            instances.Remove(index);
+        if(instancesParticleSystems.ContainsKey(index)) {
+            DestroyImmediate(instancesParticleSystems[index].gameObject);
+            instancesParticleSystems.Remove(index);
             freeList.Add(index);
         }
     }

@@ -72,11 +72,11 @@ public class LevelManager : MonoBehaviour, IComponentData
         var ground = Create("Ground", GridToWorld(0, 0, 0), Quaternion.identity, new Vector3Int(32, 1, 32));
         manager.AddComponent<Ground>(ground.AsArray());
 
-        var trees = Create("Tree", GridToWorld(0, 1, 0), Quaternion.identity, new Vector3Int(8, 1, 8));
+        var trees = Create("Tree", GridToWorld(5, 1, 5), Quaternion.identity, new Vector3Int(16, 1, 12));
         manager.AddComponent<Tree>(trees.AsArray());
         foreach(var entity in trees) {
-            manager.AddComponentData(entity, new VisuallyCulled { distance = 6.0f, cutoffDistance = 3.0f });
-            manager.AddComponentData(entity, new VFXHandle { vfxName = "Walking" });
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 5.0f, cutoffDistance = 2.5f });
+            manager.AddComponentData(entity, new HitVFX { vfxName = "Explosion" });
         }
         manager.AddComponent<Attackable>(trees);
     }

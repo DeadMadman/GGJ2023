@@ -1,41 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Scenes;
 using Unity.Transforms;
+using UnityEditor.PackageManager;
 using UnityEngine;
-using UnityEngine.Experimental.GlobalIllumination;
 
 public class Player : MonoBehaviour
 {
-    [SerializeField]
-    private GameObject prefab;
-    private MeshFilter meshFilter;
-    private MeshRenderer meshRenderer;
-
-
-    public MeshFilter MeshFilter
-    {
-        get
-        {
-            if (meshFilter == null) {
-                meshFilter = GetComponent<MeshFilter>();
-            }
-            return meshFilter;
-        }
-    }
-
-    public MeshRenderer MeshRenderer
-    {
-        get
-        {
-            if (meshRenderer == null) {
-                meshRenderer = GetComponent<MeshRenderer>();
-            }
-            return meshRenderer;
-        }
-    }
 
     [SerializeField] private float speed;
     [SerializeField] private float dodgeTime;
@@ -44,55 +19,75 @@ public class Player : MonoBehaviour
 
     [SerializeField] private GameObject treePrefab;
 
-    
+    private Entity entity;
 
-    public void BeGrey()
+    private void OnDrawGizmos()
     {
-        MeshRenderer.material.color = Color.grey;
-    }
-    public void BeRed()
-    {
-        MeshRenderer.material.color = Color.red;
-    }
-    public void BeBlue()
-    {
-        MeshRenderer.material.color = Color.blue;
-    }
-    public void BeGreen()
-    {
-        MeshRenderer.material.color = Color.green;
-    }
-    public void BeMagenta()
-    {
-        MeshRenderer.material.color = Color.magenta;
-    }
-
-    public void Walk()
-    {
-        
-    }
-
-
-    public class Baker : Baker<Player>
-    {
-        public override void Bake(Player authoring)
-        {
-            // Break down for re-usable bakers
-            var animator = authoring.GetComponent<Animator>();
-            AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
-            AddComponentObject(new Anim { animator = animator });
-            AddComponent(new Speed { value = authoring.speed });
-            AddComponent<Input>();
-            AddComponent<PreviousVelocity>();
-            AddComponent<Velocity>();
-            AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
-            AddComponent(new VFXHandle { vfxName = "Walking" });
-            AddComponent(new Look { value = authoring.transform.forward });
-            AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
-            
-            AddComponentObject(new PlantableTree { prefab = authoring.treePrefab });
+        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        var query = manager.CreateEntityQuery(typeof(LocalToWorld), typeof(Look));
+        var looks = query.ToComponentDataArray<Look>(Allocator.Temp);
+        var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
+        Gizmos.color = Color.red;
+        foreach(var index in Enumerable.Range(0, query.CalculateEntityCount())) {
+            Gizmos.DrawLine(transforms[index].Position, transforms[index].Position + (looks[index].value * 3.0f));
         }
     }
+
+    private void Update()
+    {
+        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        //var transform = manager.GetComponentData<LocalToWorld>(entity);
+        var localData = manager.GetComponentData<LocalTransform>(entity);
+        this.transform.localPosition = localData.Position;
+        this.transform.localRotation = localData.Rotation;
+        this.transform.localScale = localData.Scale * Vector3.one;
+
+    }
+
+    private void Awake()
+    {
+        var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        // Break down for re-usable bakers
+        //var copy = authoring.Instance;
+        var archetype = manager.CreateArchetype(typeof(LocalTransform), typeof(WorldTransform), typeof(LocalToWorld));
+        entity = manager.CreateEntity(archetype);
+        var animator = GetComponentInChildren<Animator>();
+
+        manager.AddComponentData(entity, new LocalTransform { Position = transform.position, Rotation = transform.rotation, Scale = 1.0f }) ;
+        manager.AddComponentObject(entity, new Anim { animator = animator });
+        manager.AddComponentData(entity, new Speed { value = speed });
+        manager.AddComponent<Input>(entity);
+        manager.AddComponent<PreviousVelocity>(entity);
+        manager.AddComponent<Velocity>(entity);
+        manager.AddComponentData(entity, new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+        manager.AddComponentData(entity, new WalkingVFX { vfxName = "Walking" });
+        manager.AddComponentData(entity, new AttackVFX { vfxName = "Axe Swing" });
+        manager.AddComponentData(entity, new Look { value = transform.forward });
+        manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
+        manager.AddComponentData(entity, new PlantableTree { prefab = treePrefab });
+    }
+
+    //public class Baker : Baker<Player>
+    //{
+    //    public override void Bake(Player authoring)
+    //    {
+    //        // Break down for re-usable bakers
+    //        //var copy = authoring.Instance;
+    //        var animator = authoring.GetComponentInChildren<Animator>();
+
+    //        AddComponentObject(new Anim { animator = animator });
+    //        AddComponent(new Speed { value = authoring.speed });
+    //        AddComponent<Input>();
+    //        AddComponent<PreviousVelocity>();
+    //        AddComponent<Velocity>();
+    //        AddComponent(new Attack { attackTime = 1.0f, cooldown = 2.0f, range = 2.0f, angle = 90.0f });
+    //        AddComponent(new WalkingVFX { vfxName = "Walking" });
+    //        AddComponent(new AttackVFX { vfxName = "Axe Swing" });
+    //        AddComponent(new Look { value = authoring.transform.forward });
+    //        AddComponent(new Dodge { cooldown = authoring.dodgeCooldown, dodgeTime = authoring.dodgeTime, dodgeSpeed = authoring.dodgeSpeed });
+    //        AddComponentObject(new PlantableTree { prefab = authoring.treePrefab });
+    //    }
+    //}
 }
 
 
@@ -105,7 +100,7 @@ public partial struct VelocityToPreviousVelocitySystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         foreach(var (prev, curr) in SystemAPI.Query<RefRW<PreviousVelocity>, Velocity>()) {
-            prev.ValueRW.value = curr.value;
+            prev.ValueRW.value = curr.value; 
         }
     }
 }
@@ -175,20 +170,20 @@ public partial struct WalkingEffectsSystem : ISystem
         var particles = ParticleSystemManager.Instance;
 
 
-        foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<VFXHandle>>()) {
+        foreach (var (transform, velocity, previousVelocity, vfx) in SystemAPI.Query<LocalToWorld, Velocity, PreviousVelocity, RefRW<WalkingVFX>>()) {
             bool isMoving = math.lengthsq(velocity.value) > 0.0f;
             bool wasMoving = math.lengthsq(previousVelocity.value) > 0.0f;
-            ref VFXHandle vfxRef = ref vfx.ValueRW;
+            ref WalkingVFX vfxRef = ref vfx.ValueRW;
             var key = vfxRef.vfxName.Value;
             if (isMoving && !wasMoving) {
                 vfxRef.handle = particles.Play(key, transform.Position, transform.Rotation);
             }
             else if (!isMoving && wasMoving) {
-                particles.Stop(key, vfxRef.handle);
+                particles.Stop(vfxRef.handle);
             }
 
             if(isMoving) {
-                particles.Transform(key, vfxRef.handle, transform.Position, transform.Rotation);
+                particles.Transform(vfxRef.handle, transform.Position, transform.Rotation);
             }
         }
     }
@@ -227,7 +222,7 @@ public partial struct InputToVelocitySystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-        foreach(var (input, velocity, transform) in SystemAPI.Query<Input, RefRW<Velocity>, RefRW<LocalTransform>>().WithNone<Dodging>()) {
+        foreach(var (input, velocity, transform) in SystemAPI.Query<Input, RefRW<Velocity>, RefRW<LocalTransform>>().WithNone<Dodging, Attacking>()) {
             velocity.ValueRW.value = input.movement;
             if(math.lengthsq(input.movement) > 0.0f) {
                 transform.ValueRW.Rotation = Quaternion.LookRotation(input.movement, Vector3.up);
@@ -290,17 +285,19 @@ public partial struct InputToAttackSystem : ISystem
     {
         var dt = SystemAPI.Time.DeltaTime;
 
-        var particle = ParticleSystemManager.Instance;
+        var particles = ParticleSystemManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (attack, input, visuals, transform, entity) in SystemAPI.Query<RefRW<Attack>, Input, Anim, LocalToWorld>().WithNone<Attacking>().WithEntityAccess()) {
+        foreach (var (velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackVFX>>().WithNone<Attacking>().WithEntityAccess()) {
             var time = attack.ValueRO.time - dt;
             var att = attack.ValueRO;
+            ref var attackVfx = ref vfx.ValueRW;
             if (time <= 0.0f && input.justAttacked) {
                 attack.ValueRW.time += attack.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Attacking { time = attack.ValueRO.attackTime, angle = att.angle, range = att.range });
-
+                velocity.ValueRW.value = Vector3.zero;
                 visuals.animator.SetBool("attack", true);
+                particles.PlayOnce(attackVfx.vfxName.Value, transform.Position + math.float3(0.0f, 1.0f, 0.0f), transform.Rotation);
             }
             attack.ValueRW.time = math.max(time, 0.0f);
         }
@@ -317,12 +314,18 @@ public partial struct OnHitSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var particles = ParticleSystemManager.Instance;
-        foreach(var (transform, attackable, handle) in SystemAPI.Query<LocalToWorld, Attackable, RefRW<VFXHandle>>()) {
+        foreach(var (transform, attackable, handle) in SystemAPI.Query<LocalToWorld, Attackable, RefRW<HitVFX>>()) {
             if(attackable.JustAttacked) {
+                Debug.Log("Start");
                 handle.ValueRW.handle = particles.Play(handle.ValueRW.vfxName.Value, transform.Position, transform.Rotation);
             }
             else if(attackable.StoppedAttacked){
-                particles.Stop(handle.ValueRW.vfxName.Value, handle.ValueRW.handle);
+                Debug.Log("End");
+                particles.Stop(handle.ValueRW.handle);
+            }
+
+            if(attackable.IsAttacked) {
+                Debug.Log("Attack");
             }
         }
     }
@@ -331,13 +334,13 @@ public partial struct OnHitSystem : ISystem
 
 public partial struct AttackSystem : ISystem
 {
-    private bool InFOV(Vector3 lhs, Vector3 dir, Vector3 rhs, float maxDistance, float angle)
+    private bool InFOV(Vector3 lhs, Vector3 dir, Vector3 rhs, float minDistance, float maxDistance, float angle)
     {
-        var offset = lhs - rhs;
+        var offset = rhs - lhs;
         var distance = offset.magnitude;
 
-        if (distance < 0.0f + Mathf.Epsilon) {
-            return true;
+        if (distance < minDistance + Mathf.Epsilon) {
+            return false;
         }
 
         if (distance < maxDistance) {
@@ -371,7 +374,7 @@ public partial struct AttackSystem : ISystem
 
             foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
                 ref var att = ref attackable.ValueRW;
-                if(InFOV(lhs.Position, look.value, rhs.Position, attack.range, attack.angle)) {
+                if(InFOV(lhs.Position, look.value, rhs.Position, 0.5f, attack.range, attack.angle)) {
                     att.currState = true;
                     attack.currHit = true;
                 }
