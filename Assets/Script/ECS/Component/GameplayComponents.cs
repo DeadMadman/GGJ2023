@@ -52,6 +52,37 @@ public struct Input : IComponentData
 {
     public float3 movement;
     public bool justDodged;
+    public bool justAttacked;
+}
+
+public struct Attack : IComponentData
+{
+    public float cooldown;
+    public float attackTime;
+    public float range;
+    public float time;
+}
+
+public struct Attacking : IComponentData
+{
+    public float time;
+
+    public bool prevHit;
+    public bool currHit;
+
+    public bool IsHitting => currHit;
+    public bool JustHit => currHit && !prevHit;
+    public bool StoppedHitting => !currHit && prevHit;
+}
+
+public struct Attackable : IComponentData
+{
+    public bool prevState;
+    public bool currState;
+
+    public bool IsAttacked => currState;
+    public bool JustAttacked => currState && !prevState;
+    public bool StoppedAttacked => !currState && prevState;
 }
 
 public struct Instanced : IComponentData

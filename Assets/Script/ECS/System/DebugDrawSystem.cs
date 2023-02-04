@@ -89,20 +89,6 @@ public partial class DrawSystem : SystemBase
         var planes = GeometryUtility.CalculateFrustumPlanes(cam.camera);
         var level = LevelManager.Instance;
 
-        foreach (var (transform, visuals) in SystemAPI.Query<LocalToWorld, Visuals>().WithNone<Instanced>()) {
-            if (visuals != null) {
-                var renderer = visuals.renderer;
-
-                var mesh = visuals.filter.mesh;
-                for (var index = 0; index < mesh.subMeshCount; index++) {
-                    var material = renderer.materials[index];
-                    RenderParams renderParams = new(material);
-
-                    Graphics.RenderMesh(renderParams, mesh, index, transform.Value);
-                }
-            }
-        }
-
         {
             var groundResource = LevelManager.Instance.Get("Ground");
             var go = groundResource.prefab;
@@ -131,6 +117,20 @@ public partial class DrawSystem : SystemBase
             Draw(transforms, mesh, sharedMaterials);
 
             EntityManager.RemoveComponent<InCameraView>(query.ToEntityArray(Allocator.Temp));
+        }
+
+        foreach (var (transform, visuals) in SystemAPI.Query<LocalToWorld, Visuals>().WithNone<Instanced>()) {
+            if (visuals != null) {
+                var renderer = visuals.renderer;
+
+                var mesh = visuals.filter.mesh;
+                for (var index = 0; index < mesh.subMeshCount; index++) {
+                    var material = renderer.materials[index];
+                    RenderParams renderParams = new(material);
+
+                    Graphics.RenderMesh(renderParams, mesh, index, transform.Value);
+                }
+            }
         }
 
     }
