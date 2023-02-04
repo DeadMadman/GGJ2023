@@ -763,7 +763,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   blockData:
   - name: Ground
-    prefab: {fileID: 919132149155446097, guid: 16d79bd5cc0775b4f8702c150da4a3d6, type: 3}
+    prefab: {fileID: 4402254311938146556, guid: 85194e270674d4a4b8874ec98a214788,
+      type: 3}
   - name: Tree
     prefab: {fileID: 919132149155446097, guid: 6573a8615636bea4eb1d76d6ba43e80f, type: 3}
   - name: GreyTree
