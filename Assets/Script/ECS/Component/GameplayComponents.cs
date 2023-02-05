@@ -14,6 +14,19 @@ public struct Health : IComponentData
     public int health;
 }
 
+public struct Bounceable : IComponentData
+{
+
+}
+
+public struct Bouncing : IComponentData
+{
+    public float fullTime;
+    public float time;
+    public Vector3 from;
+    public Vector3 target;
+}
+
 public struct Killed : IComponentData
 {
     public float dyingTimer; // To allow countdown to entity destruction
@@ -172,6 +185,7 @@ public struct VisuallyCulled : IComponentData
 {
     public float distance;
     public float cutoffDistance;
+    public float scale;
 }
 
 public class Collectible : IComponentData

@@ -119,10 +119,20 @@ public class LevelManager : MonoBehaviour, IComponentData
         var ground = Create("Ground", GridToWorld(-8, 0, -8), Quaternion.identity, new Vector3Int(32, 1, 32));
         manager.AddComponent<Ground>(ground.AsArray());
         foreach (var entity in ground) {
-            manager.AddComponentData(entity, new VisuallyCulled { distance = 18f, cutoffDistance = 2.5f });
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 18f, cutoffDistance = 2.5f, scale = 1.0f });
         }
         
-        var trees = Create("Tree", GridToWorld(0, 1, 0), Quaternion.identity, new Vector3Int(16, 1, 12));
+        NativeList<Entity> trees = new NativeList<Entity>(Allocator.Temp);
+        for(int x = -8 ; x < -8+32; x++) {
+            if(x % 4 == 0) {
+                for (int y = -8; y < -8 + 32; y++) {
+                    if (y % 4 == 0) {
+                        trees.AddRange(Create("Tree", GridToWorld(x, 1, y), Quaternion.identity, new Vector3Int(2, 1, 2)).AsArray());
+                    }
+                }
+            }
+        }
+       // var trees = Create("Tree", GridToWorld(8, 1, -8), Quaternion.identity, new Vector3Int(1, 1, 1));
         manager.AddComponent<Tree>(trees.AsArray());
         var mildSound = new FixedList512Bytes<FixedString128Bytes>();
         mildSound.Add("Hit");
@@ -132,10 +142,10 @@ public class LevelManager : MonoBehaviour, IComponentData
         // :)
 
         foreach (var entity in trees) {
-            manager.AddComponentData(entity, new VisuallyCulled { distance = 15.0f, cutoffDistance = 2.5f });
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 15.0f, cutoffDistance = 2.5f, scale = 1.0f });
             manager.AddComponentData(entity, new HitFX { vfxName = "Explosion", mildSounds = mildSound, strongSounds = strongSound });
             manager.AddComponentData(entity, new Health { health = 1 });
-            manager.AddComponentData(entity, new Dropping { acorn = acorn, log = log, chanceForAcorn = 0.08f, chanceForWood = 0.25f });
+            manager.AddComponentData(entity, new Dropping { acorn = acorn, log = log, chanceForAcorn = 0.08f, chanceForWood = 0.25f});
         }
         manager.AddComponent<Attackable>(trees);
     }

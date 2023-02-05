@@ -37,6 +37,8 @@ public class EnemyTree : MonoBehaviour
         strongSound.Add("Explosion");
         manager.AddComponentData(entity, new HitFX { vfxName = "Explosion", mildSounds = mildSound, strongSounds = strongSound });
         manager.AddComponentData(entity, new Health { health = 2 });
+        manager.AddComponentData(entity, new VisuallyCulled { distance = 18f, cutoffDistance = 2.5f, scale = 0.25f });
+        manager.AddComponent<Bounceable>(entity);
     }
 
     private void Update()
