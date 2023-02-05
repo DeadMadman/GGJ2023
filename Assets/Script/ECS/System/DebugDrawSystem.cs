@@ -42,9 +42,15 @@ public partial struct VisualCullingSystem : ISystem
         return x + y + z;
     }
 
-    public void OnCreate(ref SystemState state) { }
+    private NativeList<Entity> removeList;
+    public void OnCreate(ref SystemState state) 
+    {
+        removeList = new NativeList<Entity>(Allocator.Persistent);
+    }
 
-    public void OnDestroy(ref SystemState state) { }
+    public void OnDestroy(ref SystemState state) {
+        removeList.Dispose();
+    }
 
     public void OnUpdate(ref SystemState state)
     {
@@ -52,18 +58,17 @@ public partial struct VisualCullingSystem : ISystem
         var cam = MainCamera.Instance;
         var planes = GeometryUtility.CalculateFrustumPlanes(cam.camera);
 
-        EntityCommandBuffer cmd = new(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        
         var target = CameraTarget.Instance;
+        removeList.Clear();
         foreach (var (transform, entity) in SystemAPI.Query<RefRW<LocalTransform>>().WithEntityAccess()) {
             ref var transformRef = ref transform.ValueRW;
 
             var bounds = level.GetBoundsWith(transformRef.Position);
             if (GeometryUtility.TestPlanesAABB(planes, bounds)) {
-                cmd.AddComponent<InCameraView>(entity);
+                removeList.Add(entity);
             }
         }
-        cmd.Playback(state.EntityManager);
+        state.EntityManager.AddComponent<InCameraView>(removeList);
 
         foreach (var (transform, vs) in SystemAPI.Query<RefRW<LocalTransform>, VisuallyCulled>().WithAll<InCameraView>()) {
             ref var transformRef = ref transform.ValueRW;
