@@ -45,7 +45,7 @@ public partial struct VisualCullingSystem : ISystem
     private NativeList<Entity> removeList;
     public void OnCreate(ref SystemState state) 
     {
-        removeList = new NativeList<Entity>(Allocator.Persistent);
+        removeList = new NativeList<Entity>(2048, Allocator.Persistent);
     }
 
     public void OnDestroy(ref SystemState state) {
@@ -132,7 +132,7 @@ public partial class DrawSystem : SystemBase
             var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
             Draw(transforms, mesh, sharedMaterials);
             
-            EntityManager.RemoveComponent<InCameraView>(query.ToEntityArray(Allocator.Temp));
+            EntityManager.RemoveComponent<InCameraView>(query);
         }
 
         {
@@ -147,7 +147,7 @@ public partial class DrawSystem : SystemBase
             var transforms = query.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
             Draw(transforms, mesh, sharedMaterials);
 
-            EntityManager.RemoveComponent<InCameraView>(query.ToEntityArray(Allocator.Temp));
+            EntityManager.RemoveComponent<InCameraView>(query);
         }
 
         foreach (var (transform, visuals) in SystemAPI.Query<LocalToWorld, Visuals>().WithNone<Instanced>()) {
