@@ -155,3 +155,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 2.5
+  log: {fileID: 4399061415588865570, guid: 9c7e4eccac9a83949aca9ce4e0811641, type: 3}
+  acorn: {fileID: 4576199523402794237, guid: 3354ffe425881e24aa198487e129260d, type: 3}

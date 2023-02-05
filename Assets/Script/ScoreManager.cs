@@ -2,12 +2,18 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using Unity.Entities;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-public class ScoreManager : MonoBehaviour
+public class ScoreManager : MonoBehaviour, IComponentData
 {
+    private void Awake()
+    {
+        World.DefaultGameObjectInjectionWorld.EntityManager.CreateSingleton(this, "Scorn Manager");
+    }
+
     [SerializeField] private TMP_Text logText;
     [SerializeField] private TMP_Text acornText;
 
@@ -17,19 +23,21 @@ public class ScoreManager : MonoBehaviour
     private int logCount = 0;
     private int acornCount = 0;
 
+    public int AcornCount => acornCount;
+
     private float startScale = 1f;
     private float endScale = 1.6f;
     private float scaleLerpValue;
     float scaleDuration = 0.1f;
 
-    void AddLog(int num)
+    public void AddLog(int num)
     {
         logCount += num;
         logText.text = logCount.ToString();
         StartCoroutine(AnimateIcon(logImg));
     }
     
-    void AddAcorn(int num)
+    public void AddAcorn(int num)
     {
         acornCount += num;
         acornText.text = acornCount.ToString();

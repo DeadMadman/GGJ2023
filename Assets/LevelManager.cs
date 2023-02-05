@@ -15,6 +15,11 @@ public struct BlockData
 
 public class LevelManager : MonoBehaviour, IComponentData
 {
+    [SerializeField] private Collectable log;
+    [SerializeField] private Collectable acorn;
+
+    HashSet<Vector3Int> blocked = new();
+
     private static EntityQuery query;
     public static EntityQuery Query => query;
     public static LevelManager Instance => query.GetSingleton<LevelManager>();
@@ -37,6 +42,48 @@ public class LevelManager : MonoBehaviour, IComponentData
     {
         var half = (cubeSize * 0.5f);
         return Vector3.Scale(new Vector3(x, y, z), cubeSize) - half;
+    }
+
+    public Vector3Int WorldToGrid(Vector3 pos)
+    {
+        int x = Mathf.RoundToInt(pos.x / cubeSize.x);
+        int y = Mathf.RoundToInt(pos.y / cubeSize.y);
+        int z = Mathf.RoundToInt(pos.z / cubeSize.z);
+        return new(x, z, z);
+    }
+
+    public void SetBlocked(int x, int y, int z)
+    {
+        var that = new Vector3Int(x, y, z);
+        if (blocked.Contains(that)) {
+            return;
+        }
+        blocked.Add(that);
+    }
+    public void Unblock(Vector3Int that)
+    {
+        if (!blocked.Contains(that)) {
+            return;
+        }
+        blocked.Remove(that);
+    }
+
+    public void Block(Vector3Int that)
+    {
+        if (blocked.Contains(that)) {
+            return;
+        }
+        blocked.Add(that);
+    }
+    public bool IsBLocked(int x, int y, int z)
+    {
+        var that = new Vector3Int(x, y, z);
+        return blocked.Contains(that);
+    }
+
+    public bool IsBLocked(Vector3Int that)
+    {
+        return blocked.Contains(that);
     }
 
     public Bounds GetBoundsWith(Vector3 pos)
@@ -69,21 +116,25 @@ public class LevelManager : MonoBehaviour, IComponentData
 
         cubeArchetype = manager.CreateArchetype(typeof(Instanced), typeof(LocalToWorld), typeof(LocalTransform), typeof(WorldTransform), typeof(ParentTransform));
 
-        var ground = Create("Ground", GridToWorld(0, 0, 0), Quaternion.identity, new Vector3Int(32, 1, 32));
+        var ground = Create("Ground", GridToWorld(-8, 0, -8), Quaternion.identity, new Vector3Int(32, 1, 32));
         manager.AddComponent<Ground>(ground.AsArray());
-
-        var trees = Create("Tree", GridToWorld(5, 1, 5), Quaternion.identity, new Vector3Int(16, 1, 12));
+        foreach (var entity in ground) {
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 18f, cutoffDistance = 2.5f });
+        }
+        
+        var trees = Create("Tree", GridToWorld(0, 1, 0), Quaternion.identity, new Vector3Int(16, 1, 12));
         manager.AddComponent<Tree>(trees.AsArray());
         var mildSound = new FixedList512Bytes<FixedString128Bytes>();
         mildSound.Add("Hit");
-
+        
         var strongSound = new FixedList512Bytes<FixedString128Bytes>();
         strongSound.Add("Explosion");
 
         foreach (var entity in trees) {
-            manager.AddComponentData(entity, new VisuallyCulled { distance = 7.5f, cutoffDistance = 2.5f });
+            manager.AddComponentData(entity, new VisuallyCulled { distance = 15.0f, cutoffDistance = 2.5f });
             manager.AddComponentData(entity, new HitFX { vfxName = "Explosion", mildSounds = mildSound, strongSounds = strongSound });
             manager.AddComponentData(entity, new Health { health = 1 });
+            manager.AddComponentData(entity, new Dropping { acorn = acorn, log = log, chanceForAcorn = 0.08f, chanceForWood = 0.25f });
         }
         manager.AddComponent<Attackable>(trees);
     }
@@ -100,6 +151,8 @@ public class LevelManager : MonoBehaviour, IComponentData
             for (int y = 0; y < count.y; y++) {
                 for (int x = 0; x < count.x; x++) {
                     var position = at + Vector3.Scale(new Vector3(x, y, z), cubeSize * 1.0f);
+
+                    blocked.Add(new Vector3Int(x, y, z));
 
                     var entity = manager.CreateEntity(cubeArchetype);
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -15,7 +16,24 @@ public struct Health : IComponentData
 
 public struct Killed : IComponentData
 {
-    
+}
+public struct Growable : IComponentData
+{
+    public float timer;
+    public float probability;
+}
+public class GrowableResources : IComponentData
+{
+    public GameObject prefab;
+}
+
+public class Dropping : IComponentData
+{
+    public float chanceForAcorn;
+    public float chanceForWood;
+
+    public Collectable acorn;
+    public Collectable log;
 }
 
 public struct PreviousVelocity : IComponentData
@@ -155,9 +173,9 @@ public struct VisuallyCulled : IComponentData
     public float cutoffDistance;
 }
 
-public struct Collectible : IComponentData
+public class Collectible : IComponentData
 {
-
+    public Collectable context;
 }
 
 public struct WalkingEnemy : IComponentData
@@ -188,6 +206,8 @@ public class Visuals : IComponentData, IEquatable<Visuals>
 
 public class PlantableTree : IComponentData
 {
+    public float timer;
+    public float cooldown;
     public Entity entity;
     public GameObject prefab;
 }

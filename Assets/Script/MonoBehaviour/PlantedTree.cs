@@ -9,6 +9,8 @@ public class PlantedTree : MonoBehaviour
     private MeshFilter meshFilter;
     private MeshRenderer meshRenderer;
 
+    [SerializeField] private GameObject prefab;
+    public GameObject Prefab => prefab;
     public MeshFilter MeshFilter
     {
         get
@@ -45,6 +47,7 @@ public class Baker : Baker<PlantedTree>
         AddComponentObject(new Visuals { filter = authoring.MeshFilter, renderer = authoring.MeshRenderer });
         AddComponent(new LocalTransform { Position = authoring.transform.position, Rotation = authoring.transform.rotation, Scale = 1 });
         AddComponent(new GrowthComponent { exclusionRadius = authoring.exclusionRadius, growthSpeedMultiplier = 1, timeTillFullyGrown = authoring.timeTillFullyGrown });
+      
         authoring.transform.localScale = new Vector3(0, 0, 0);
     }
 }

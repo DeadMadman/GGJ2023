@@ -8,7 +8,9 @@ using UnityEngine;
 
 public class EnemyTree : MonoBehaviour
 {
-    [SerializeField] private float speed = 5.0f;
+    [SerializeField] private float speed = 2.5f;
+    [SerializeField] private Collectable log;
+    [SerializeField] private Collectable acorn;
 
     private Entity entity;
 
@@ -26,6 +28,7 @@ public class EnemyTree : MonoBehaviour
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
         manager.AddComponentData(entity, new WalkingFX { vfxName = "Walking" });
+        manager.AddComponentData(entity, new Dropping { acorn = acorn, log = log, chanceForAcorn = 0.08f, chanceForWood = 0.25f });
 
         var mildSound = new FixedList512Bytes<FixedString128Bytes>();
         mildSound.Add("Hit");

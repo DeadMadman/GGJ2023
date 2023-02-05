@@ -6,6 +6,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Scenes;
 using Unity.Transforms;
+using UnityEditor.PackageManager;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -16,7 +17,7 @@ public class Player : MonoBehaviour
     [SerializeField] private float dodgeSpeed;
     [SerializeField] private float dodgeCooldown;
 
-    [SerializeField] private GameObject treePrefab;
+    [SerializeField] private PlantedTree treePrefab;
 
     private Entity entity;
 
@@ -42,13 +43,13 @@ public class Player : MonoBehaviour
         entity = manager.CreateEntity(archetype);
         var animator = GetComponentInChildren<Animator>();
 
-        manager.AddComponentData(entity, new LocalTransform { Position = transform.position, Rotation = transform.rotation, Scale = 1.0f }) ;
+        manager.AddComponentData(entity, new LocalTransform { Position = transform.position, Rotation = transform.rotation, Scale = 1.0f });
         manager.AddComponentObject(entity, new Anim { animator = animator });
         manager.AddComponentData(entity, new Speed { value = speed });
         manager.AddComponent<Input>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new Attack { attackTime = 0.75f, cooldown = 1.5f, range = 3.0f, angle = 180.0f });
+        manager.AddComponentData(entity, new Attack { attackTime = 0.75f, cooldown = 1.5f, range = 2.5f, angle = 360.0f });
 
         var sounds = new FixedList512Bytes<FixedString128Bytes>();
         sounds.Add("Walking0");
@@ -62,8 +63,11 @@ public class Player : MonoBehaviour
         manager.AddComponentData(entity, new Look { value = transform.forward });
         manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
 
-        var tree = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntity(typeof(LocalTransform), typeof(WorldTransform), typeof(LocalToWorld), typeof(Prefab));
-        manager.AddComponentData(entity, new PlantableTree { entity = tree, prefab = treePrefab });
+        var tree = manager.CreateEntity(typeof(LocalTransform), typeof(WorldTransform), typeof(LocalToWorld), typeof(Prefab));
+        manager.AddComponentData(tree, new Growable { timer = 5.0f, probability = 0.15f });
+        manager.AddComponentObject(tree, new GrowableResources { prefab = treePrefab.Prefab });
+        manager.AddComponentData(entity, new PlantableTree { entity = tree, prefab = treePrefab.gameObject, cooldown = 1.0f });
+
     }
 
     //public class Baker : Baker<Player>
@@ -101,6 +105,34 @@ public partial struct VelocityToPreviousVelocitySystem : ISystem
         foreach(var (prev, curr) in SystemAPI.Query<RefRW<PreviousVelocity>, Velocity>()) {
             prev.ValueRW.value = curr.value; 
         }
+    }
+}
+
+public partial struct CollectionSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+
+        var particles = ParticleSystemManager.Instance;
+        var sounds = SoundManager.Instance;
+
+        foreach (var (_, lhs) in SystemAPI.Query<Input, LocalTransform>()) {
+            foreach (var (collectible, rhs, entity) in SystemAPI.Query<Collectible, LocalTransform>().WithEntityAccess()) {
+                if(math.distance(lhs.Position, rhs.Position) < 1.0f) {
+                    collectible.context.Collect();
+                    cmd.DestroyEntity(entity);
+                    particles.PlayOnce("Pickup", rhs.Position + math.float3(0.0f, 2.0f, 0.0f), rhs.Rotation);
+                    sounds.PlayOnce("Pickup", rhs.Position, rhs.Rotation);
+                    GameObject.DestroyImmediate(collectible.context.gameObject);
+                }
+            }
+        }
+        cmd.Playback(state.EntityManager);
     }
 }
 
@@ -388,6 +420,7 @@ public partial struct OnHitSystem : ISystem
             }
         }
 
+        int explosionCounter = 0;
         foreach (var (transform, attackable, fx) in SystemAPI.Query<LocalToWorld, Attackable, RefRO<HitFX>>()) {
             if(attackable.JustAttacked) {
                 var f = fx.ValueRO;
@@ -403,13 +436,17 @@ public partial struct OnHitSystem : ISystem
                     );
                 }
 
+                if(explosionCounter > 1) {
+                    break;
+                }
                 if(!f.strongSounds.IsEmpty) {
+                    explosionCounter++;
                     sounds.PlayOnce(
                         f.strongSounds[UnityEngine.Random.Range(0, f.strongSounds.Length)].Value,
                         transform.Position +
                         math.float3(0.0f, 0.5f, 0.0f),
                         transform.Rotation,
-                        1.0f
+                        0.8f
                     );
                 }
                
@@ -438,17 +475,33 @@ public partial struct KillSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var particles = ParticleSystemManager.Instance;
+        var sounds = SoundManager.Instance;
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
         foreach (var (anim, entity) in SystemAPI.Query<Anim>().WithAll<Killed>().WithEntityAccess()) {
+            anim.animator.gameObject.SetActive(false);
             GameObject.DestroyImmediate(anim.animator.gameObject);
         }
+
         foreach (var (vfx, entity) in SystemAPI.Query<WalkingFX>().WithAll<Killed>().WithEntityAccess()) {
             particles.Stop(vfx.handle);
         }
 
+        foreach (var (dropping, transform,  entity) in SystemAPI.Query<Dropping, LocalToWorld>().WithAll<Killed>().WithEntityAccess()) {
+            var random = UnityEngine.Random.Range(0, 1.0f);
+            if(random < dropping.chanceForAcorn) {
+                GameObject.Instantiate(dropping.acorn, transform.Position, transform.Rotation);
+            }
+            if(random + dropping.chanceForAcorn < dropping.chanceForWood) {
+                GameObject.Instantiate(dropping.log, transform.Position, transform.Rotation);
+            }
+        }
+
+        var level = LevelManager.Instance;
         foreach (var (transform, entity) in SystemAPI.Query<LocalToWorld>().WithAll<Killed>().WithEntityAccess()) {
             cmd.DestroyEntity(entity);
+            level.Unblock(level.WorldToGrid(transform.Position));
             particles.PlayOnce("Death", transform.Position, transform.Rotation);
+            sounds.PlayOnce("Death", transform.Position, transform.Rotation);
         }
         cmd.Playback(state.EntityManager);
     }
@@ -463,13 +516,13 @@ public partial struct AttackSystem : ISystem
         var distance = offset.magnitude;
 
         if (distance < minDistance + Mathf.Epsilon) {
-            return false;
+            return true;
         }
 
         if (distance < maxDistance) {
             var unitOffset = offset / distance;
             var coneViewDot = Vector3.Dot(dir, unitOffset);
-            if (coneViewDot > Mathf.Cos(angle)) {
+            if (true && coneViewDot > Mathf.Cos(angle)) {
                 return true;
             }
         }
@@ -495,10 +548,10 @@ public partial struct AttackSystem : ISystem
             attack.prevHit = attack.currHit;
             attack.currHit = false;
             
-            if((a.attackTime - attack.time) < 0.10f) {
+            if((a.attackTime - attack.time) < 0.20f) {
                 foreach(var (rhs, attackable) in SystemAPI.Query<LocalToWorld, RefRW<Attackable>>()) {
                     ref var att = ref attackable.ValueRW;
-                    if(InFOV(lhs.Position, look.value, rhs.Position, 0.25f, attack.range, attack.angle)) {
+                    if(InFOV(lhs.Position, look.value, rhs.Position, 3.0f, attack.range, attack.angle)) {
                         att.currState = true;
                         attack.currHit = true;
                     }
@@ -587,15 +640,32 @@ public partial struct PlantingSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-
+        var dt = SystemAPI.Time.DeltaTime;
+        var level = LevelManager.Instance;
+        var sounds = SoundManager.Instance;
+        var particles = ParticleSystemManager.Instance;
+        var scoreManager = SystemAPI.ManagedAPI.GetSingleton<ScoreManager>();
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
 
         foreach (var (input, plantingPosition, tree) in SystemAPI.Query<Input, RefRO<LocalTransform>, PlantableTree>())
 		{
-            if (input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
+            if (scoreManager.AcornCount > 0 && tree.timer <= 0.0f && input.plantButton) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
             {
+                tree.timer += tree.cooldown;
+
                 float3 pos = plantingPosition.ValueRO.Position;
-                pos.y = 0.5f;
+                //pos.y = 1.0f;
+                var upperLayer = level.GridToWorld(0, 1, 0);
+                var gridPos = level.WorldToGrid(pos + (float3)upperLayer);
+                if(level.IsBLocked(gridPos)) {
+                    Debug.Log("blocked");
+                    continue;
+                }
+                pos = level.GridToWorld(gridPos.x, 1, gridPos.z);
+                scoreManager.AddAcorn(-1);
+                level.Block(gridPos);
+                particles.PlayOnce("Plant", pos, plantingPosition.ValueRO.Rotation);
+                sounds.PlayOnce("Plant", pos, plantingPosition.ValueRO.Rotation);
                 // Entity newTree = state.EntityManager.Instantiate(tree.entity);
                 // It says that the new entity doesn't have a LocalTransform, this was not an issue before.
                 var entity = cmd.Instantiate(tree.entity);
@@ -604,7 +674,44 @@ public partial struct PlantingSystem : ISystem
                 cmd.AddComponent(entity, LocalTransform.FromPosition(pos));
                 //state.EntityManager.SetComponentData(newTree, LocalTransform.FromPosition(pos));
 			}
-		}
+            tree.timer -= dt;
+
+        }
+        cmd.Playback(state.EntityManager);
+
+
+    }
+}
+
+public partial struct GorwingSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var dt = SystemAPI.Time.DeltaTime;
+        var level = LevelManager.Instance;
+        var sounds = SoundManager.Instance;
+        var scoreManager = SystemAPI.ManagedAPI.GetSingleton<ScoreManager>();
+        EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+        List<(GameObject, Vector3, Quaternion)> spawnRequest = new();
+        foreach (var (transform, local, tree, treeResources, entity) in SystemAPI.Query<LocalToWorld, RefRW<LocalTransform>, RefRW<Growable>, GrowableResources>().WithEntityAccess()) {
+            if (tree.ValueRO.timer <= 0.0f) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
+            {
+                spawnRequest.Add(new(treeResources.prefab, transform.Position, transform.Rotation));
+                cmd.DestroyEntity(entity);
+            }
+            local.ValueRW.Scale = math.lerp(0.5f, 1.0f, 1.0f - (tree.ValueRO.timer / 5.0f));
+            tree.ValueRW.timer -= dt;
+
+        }
+        foreach(var (prefab, pos, rot) in spawnRequest) {
+            GameObject.Instantiate(prefab, pos, rot);
+            level.Unblock(level.WorldToGrid(pos));
+        }
+
         cmd.Playback(state.EntityManager);
 
 

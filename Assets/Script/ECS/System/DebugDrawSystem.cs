@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -30,6 +31,15 @@ public partial struct OpeningSystem : ISystem
 
 public partial struct VisualCullingSystem : ISystem
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float Manhattan(float3 a, float3 b)
+    {
+        var x = math.abs(a.x - b.x);
+        var y = math.abs(a.y - b.y);
+        var z = math.abs(a.z - b.z);
+        return x + y + z;
+    }
+
     public void OnCreate(ref SystemState state) { }
 
     public void OnDestroy(ref SystemState state) { }
@@ -51,14 +61,24 @@ public partial struct VisualCullingSystem : ISystem
                 cmd.AddComponent<InCameraView>(entity);
             }
         }
-        foreach (var (transform, vs) in SystemAPI.Query<RefRW<LocalTransform>, VisuallyCulled>()) {
+        foreach (var (transform, vs) in SystemAPI.Query<RefRW<LocalTransform>, VisuallyCulled>() /*.WithAll<InCameraView>()*/) {
             ref var transformRef = ref transform.ValueRW;
 
-            var distance = math.distance(target.transform.position, transformRef.Position) - vs.cutoffDistance;
+            var distance = Manhattan(target.transform.position, transformRef.Position) - vs.cutoffDistance;
             var fraction = distance / vs.distance;
             fraction = 1.0f - math.smoothstep(0.0f, 1.0f, fraction);
-
-            transformRef.Scale = math.clamp(fraction, 0.0f, 1.0f);
+            if(fraction > 0.60) {
+                transformRef.Scale = 1.0f;
+            }
+            else if(fraction > 0.5f) {
+                transformRef.Scale = 0.75f;
+            }
+            else if (fraction > 0.25f) {
+                transformRef.Scale = 0.50f;
+            }
+            else {
+                transformRef.Scale = 0;
+            }
         }
 
         cmd.Playback(state.EntityManager);
