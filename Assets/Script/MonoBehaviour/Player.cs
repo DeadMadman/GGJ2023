@@ -458,7 +458,8 @@ public partial struct OnHitSystem : ISystem
             if (attackable.JustAttacked) {
                 health.ValueRW.health = health.ValueRO.health - 1;
                 if(health.ValueRW.health <= 0) {
-                    cmd.AddComponent<Killed>(entity);
+                    //cmd.AddComponent<Killed>(entity);
+                    cmd.AddComponent(entity, new Killed { dyingTimer = 3f });
                 }
             }
         }
@@ -477,9 +478,14 @@ public partial struct KillSystem : ISystem
         var particles = ParticleSystemManager.Instance;
         var sounds = SoundManager.Instance;
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (anim, entity) in SystemAPI.Query<Anim>().WithAll<Killed>().WithEntityAccess()) {
-            anim.animator.gameObject.SetActive(false);
-            GameObject.DestroyImmediate(anim.animator.gameObject);
+        foreach (var (anim, kill, entity) in SystemAPI.Query<Anim, RefRW<Killed>>().WithAll<Killed>().WithEntityAccess()) {
+
+            kill.ValueRW.dyingTimer -= SystemAPI.Time.DeltaTime;
+            if (kill.ValueRO.dyingTimer <= 0)
+            {
+                anim.animator.gameObject.SetActive(false);
+                GameObject.DestroyImmediate(anim.animator.gameObject);
+            }
         }
 
         foreach (var (vfx, entity) in SystemAPI.Query<WalkingFX>().WithAll<Killed>().WithEntityAccess()) {
