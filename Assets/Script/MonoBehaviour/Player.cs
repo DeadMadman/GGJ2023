@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEditor.PackageManager;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -62,10 +63,11 @@ public class Player : MonoBehaviour
         manager.AddComponentData(entity, new Dodge { cooldown = dodgeCooldown, dodgeTime = dodgeTime, dodgeSpeed = dodgeSpeed });
 
         var tree = manager.CreateEntity(typeof(LocalTransform), typeof(WorldTransform), typeof(LocalToWorld), typeof(Prefab));
-        manager.AddComponentData(tree, new VisuallyCulled { distance = 18f, cutoffDistance = 2.5f, scale = 1.0f });
         manager.AddComponentData(tree, new Growable { timer = 5.0f, probability = 0.15f });
         manager.AddComponentObject(tree, new GrowableResources { prefab = treePrefab.Prefab });
         manager.AddComponentData(entity, new PlantableTree { entity = tree, prefab = treePrefab.gameObject, cooldown = 1.0f });
+
+        manager.AddComponentData(entity, new Health { health = 3 });
 
     }
 
@@ -122,7 +124,7 @@ public partial struct CollectionSystem : ISystem
 
         foreach (var (_, lhs) in SystemAPI.Query<Input, LocalTransform>()) {
             foreach (var (collectible, rhs, entity) in SystemAPI.Query<Collectible, LocalTransform>().WithEntityAccess()) {
-                if(math.distance(lhs.Position, rhs.Position) < 1.25f) {
+                if(math.distance(lhs.Position, rhs.Position) < 1.0f) {
                     collectible.context.Collect();
                     cmd.DestroyEntity(entity);
                     particles.PlayOnce("Pickup", rhs.Position + math.float3(0.0f, 2.0f, 0.0f), rhs.Rotation);
@@ -457,7 +459,8 @@ public partial struct OnHitSystem : ISystem
             if (attackable.JustAttacked) {
                 health.ValueRW.health = health.ValueRO.health - 1;
                 if(health.ValueRW.health <= 0) {
-                    cmd.AddComponent<Killed>(entity);
+                    //cmd.AddComponent<Killed>(entity);
+                    cmd.AddComponent(entity, new Killed { dyingTimer = 3f });
                 }
             }
         }
@@ -476,13 +479,18 @@ public partial struct KillSystem : ISystem
         var particles = ParticleSystemManager.Instance;
         var sounds = SoundManager.Instance;
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (anim, entity) in SystemAPI.Query<Anim>().WithAll<Killed>().WithEntityAccess()) {
+        foreach (var (anim, kill, entity) in SystemAPI.Query<Anim, RefRW<Killed>>().WithAll<Killed>().WithEntityAccess()) {
             anim.animator.gameObject.SetActive(false);
             GameObject.DestroyImmediate(anim.animator.gameObject);
         }
 
         foreach (var (vfx, entity) in SystemAPI.Query<WalkingFX>().WithAll<Killed>().WithEntityAccess()) {
             particles.Stop(vfx.handle);
+        }
+
+        foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Input, Killed>())
+        {
+            particles.PlayOnce("Beaver Death", transform.Position, transform.Rotation);
         }
 
         foreach (var (dropping, transform,  entity) in SystemAPI.Query<Dropping, LocalToWorld>().WithAll<Killed>().WithEntityAccess()) {
@@ -696,13 +704,13 @@ public partial struct GorwingSystem : ISystem
         var scoreManager = SystemAPI.ManagedAPI.GetSingleton<ScoreManager>();
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
         List<(GameObject, Vector3, Quaternion)> spawnRequest = new();
-        foreach (var (transform, local, tree, cull, treeResources, entity) in SystemAPI.Query<LocalToWorld, RefRW<LocalTransform>, RefRW<Growable>, RefRW<VisuallyCulled>, GrowableResources>().WithEntityAccess()) {
+        foreach (var (transform, local, tree, treeResources, entity) in SystemAPI.Query<LocalToWorld, RefRW<LocalTransform>, RefRW<Growable>, GrowableResources>().WithEntityAccess()) {
             if (tree.ValueRO.timer <= 0.0f) // TODO: Make sure it's not too close to another tree, but that would require comparing distance with a ton of trees which sounds annoying.
             {
                 spawnRequest.Add(new(treeResources.prefab, transform.Position, transform.Rotation));
                 cmd.DestroyEntity(entity);
             }
-            cull.ValueRW.scale = math.lerp(0.5f, 1.0f, 1.0f - (tree.ValueRO.timer / 5.0f));
+            local.ValueRW.Scale = math.lerp(0.5f, 1.0f, 1.0f - (tree.ValueRO.timer / 5.0f));
             tree.ValueRW.timer -= dt;
 
         }
@@ -717,7 +725,7 @@ public partial struct GorwingSystem : ISystem
     }
 }
 
-public partial struct BounceSystem : ISystem
+public partial struct PlayerEnemySyste : ISystem
 {
     public void OnCreate(ref SystemState state) { }
 
@@ -726,12 +734,20 @@ public partial struct BounceSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach(var (attackable, bounceable, transform, look, entity) in SystemAPI.Query<Attackable, Bounceable, LocalTransform, Look>().WithEntityAccess()) {
-            if(attackable.JustAttacked) {
-                cmd.AddComponent(entity, new Bouncing { fullTime = 0.4f, time = 0.4f, from = transform.Position, target = transform.Position - (look.value * 15.0f) });
+        foreach (var (lhs, health, entity) in SystemAPI.Query<LocalToWorld, RefRW<Health>>().WithAll<Input>().WithEntityAccess()) {
+            foreach (var rhs in SystemAPI.Query<LocalToWorld>().WithAll<WalkingEnemy>()) {
+                var distance = math.distance(lhs.Position, rhs.Position);
+                if (distance < 0.5f) {
+                    health.ValueRW.health = health.ValueRO.health - 1;
+                    if (health.ValueRW.health <= 0) {
+                        cmd.AddComponent<Killed>(entity);
+                    }
+                    var direction = math.normalize(lhs.Position - rhs.Position);
+                    cmd.AddComponent(entity, new Bouncing { fullTime = 0.4f, time = 0.4f, from = rhs.Position, target = rhs.Position - (direction * 15.0f) });
+                    break;
+                }
             }
         }
-        cmd.Playback(state.EntityManager);
     }
 }
 

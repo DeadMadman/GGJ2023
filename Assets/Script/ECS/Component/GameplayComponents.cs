@@ -29,6 +29,7 @@ public struct Bouncing : IComponentData
 
 public struct Killed : IComponentData
 {
+    public float dyingTimer; // To allow countdown to entity destruction
 }
 public struct Growable : IComponentData
 {
