@@ -31,6 +31,8 @@ public partial struct OpeningSystem : ISystem
 
 public partial struct VisualCullingSystem : ISystem
 {
+
+    // LMAO, NEW YORK; EH?!
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static float Manhattan(float3 a, float3 b)
     {

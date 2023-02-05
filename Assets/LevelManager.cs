@@ -130,6 +130,7 @@ public class LevelManager : MonoBehaviour, IComponentData
         var strongSound = new FixedList512Bytes<FixedString128Bytes>();
         strongSound.Add("Explosion");
         // :)
+
         foreach (var entity in trees) {
             manager.AddComponentData(entity, new VisuallyCulled { distance = 15.0f, cutoffDistance = 2.5f });
             manager.AddComponentData(entity, new HitFX { vfxName = "Explosion", mildSounds = mildSound, strongSounds = strongSound });
