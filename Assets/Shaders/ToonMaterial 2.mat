@@ -79,7 +79,7 @@ Material:
     m_Floats:
     - ColorEnd: 0.8
     - ColorStart: 0.75
-    - OutlineWidth: 0.001
+    - OutlineWidth: 0.05
     - Scale: 0
     - Strength: 0
     - _BumpScale: 1

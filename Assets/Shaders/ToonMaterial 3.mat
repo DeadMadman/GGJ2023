@@ -79,7 +79,7 @@ Material:
     m_Floats:
     - ColorEnd: 0.8
     - ColorStart: 0.75
-    - OutlineWidth: 0.001
+    - OutlineWidth: 0.05
     - Scale: 0
     - Strength: 0
     - _BumpScale: 1
@@ -100,7 +100,7 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - MainColor: {r: 0.5943396, g: 0.45337546, b: 0.26072443, a: 1}
-    - MainColor2: {r: 0.65882355, g: 0.79215693, b: 0.34509805, a: 1}
+    - MainColor2: {r: 0.27450982, g: 0.50980395, b: 0.19607845, a: 1}
     - OutlineColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
