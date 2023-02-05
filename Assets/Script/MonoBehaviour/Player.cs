@@ -4,7 +4,6 @@ using System.Linq;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.Scenes;
 using Unity.Transforms;
 using UnityEngine;
 
@@ -746,7 +745,7 @@ public partial struct BouncingSystem : ISystem
     {
         var dt = SystemAPI.Time.DeltaTime;
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (attackable, transform, bouncing, entity) in SystemAPI.Query<Attackable, RefRW<LocalTransform>, RefRW<Bouncing>>().WithEntityAccess()) {
+        foreach (var (transform, bouncing, entity) in SystemAPI.Query<RefRW<LocalTransform>, RefRW<Bouncing>>().WithEntityAccess()) {
             cmd.AddComponent<Bouncing>(entity);
             ref var b = ref bouncing.ValueRW;
             ref var t = ref transform.ValueRW;
