@@ -55,7 +55,7 @@ public partial struct VisualCullingSystem : ISystem
         EntityCommandBuffer cmd = new(Allocator.Temp, PlaybackPolicy.SinglePlayback);
         
         var target = CameraTarget.Instance;
-        foreach (var (transform, entity) in SystemAPI.Query<RefRW<LocalTransform>>().WithAll<Instanced>().WithEntityAccess()) {
+        foreach (var (transform, entity) in SystemAPI.Query<RefRW<LocalTransform>>().WithEntityAccess()) {
             ref var transformRef = ref transform.ValueRW;
 
             var bounds = level.GetBoundsWith(transformRef.Position);
@@ -63,27 +63,28 @@ public partial struct VisualCullingSystem : ISystem
                 cmd.AddComponent<InCameraView>(entity);
             }
         }
-        foreach (var (transform, vs) in SystemAPI.Query<RefRW<LocalTransform>, VisuallyCulled>() /*.WithAll<InCameraView>()*/) {
+        cmd.Playback(state.EntityManager);
+
+        foreach (var (transform, vs) in SystemAPI.Query<RefRW<LocalTransform>, VisuallyCulled>().WithAll<InCameraView>()) {
             ref var transformRef = ref transform.ValueRW;
 
             var distance = Manhattan(target.transform.position, transformRef.Position) - vs.cutoffDistance;
             var fraction = distance / vs.distance;
             fraction = 1.0f - math.smoothstep(0.0f, 1.0f, fraction);
             if(fraction > 0.60) {
-                transformRef.Scale = 1.0f;
+                transformRef.Scale = vs.scale * 1.0f;
             }
             else if(fraction > 0.5f) {
-                transformRef.Scale = 0.75f;
+                transformRef.Scale = vs.scale * 0.75f;
             }
             else if (fraction > 0.25f) {
-                transformRef.Scale = 0.50f;
+                transformRef.Scale = vs.scale * 0.5f;
             }
             else {
                 transformRef.Scale = 0;
             }
         }
 
-        cmd.Playback(state.EntityManager);
     }
 }
 
