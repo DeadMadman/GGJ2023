@@ -6,6 +6,8 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using static UnityEngine.ParticleSystem;
 
 public class Player : MonoBehaviour
 {
@@ -20,19 +22,49 @@ public class Player : MonoBehaviour
     private Entity entity;
 
 
+    private Vector3 respawnPosition;
+
+    private Coroutine routine;
+    private IEnumerator WaitLaughAndRespawn()
+    {
+        gameObject.transform.position = Vector3.right * 10000.0f;
+        yield return new WaitForSeconds(2.0f);
+        BuildEntity();
+        routine = null;
+    }
 
     private void Update()
     {
+
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
         //var transform = manager.GetComponentData<LocalToWorld>(entity);
-        var localData = manager.GetComponentData<LocalTransform>(entity);
-        this.transform.localPosition = localData.Position;
-        this.transform.localRotation = localData.Rotation;
-        this.transform.localScale = localData.Scale * Vector3.one;
+        if(manager.Exists(entity)) {
+            var localData = manager.GetComponentData<LocalTransform>(entity);
+            this.transform.localPosition = localData.Position;
+            this.transform.localRotation = localData.Rotation;
+            this.transform.localScale = localData.Scale * Vector3.one;
+        }
+        else {
+            if(routine == null) {
+                var particles = ParticleSystemManager.Instance;
+                var query = manager.CreateEntityQuery(typeof(WalkingEnemy), typeof(LocalToWorld));
+                var enemies = query.ToEntityArray(Allocator.Temp);
+                foreach(var enemy in enemies) {
+                    var rhs = manager.GetComponentData<LocalToWorld>(enemy);
 
+                    var difference = (float3)transform.position - rhs.Position;
+                    var direction = math.normalize(math.float3(difference.x, 0.0f, difference.z));
+                    manager.AddComponentData(enemy, new Bouncing { fullTime = 0.4f, time = 0.4f, from = rhs.Position, target = rhs.Position - (direction * 6.0f) });
+                    particles.PlayOnce("Impact", rhs.Position + math.float3(0.0f, 1.25f, 0.0f), quaternion.identity);
+                }
+
+                routine = StartCoroutine(WaitLaughAndRespawn());
+                Debug.Log("Dead");
+            }
+        }
     }
 
-    private void Awake()
+    private void BuildEntity()
     {
         var manager = World.DefaultGameObjectInjectionWorld.EntityManager;
         // Break down for re-usable bakers
@@ -41,13 +73,13 @@ public class Player : MonoBehaviour
         entity = manager.CreateEntity(archetype);
         var animator = GetComponentInChildren<Animator>();
 
-        manager.AddComponentData(entity, new LocalTransform { Position = transform.position, Rotation = transform.rotation, Scale = 1.0f });
+        manager.AddComponentData(entity, new LocalTransform { Position = respawnPosition, Rotation = transform.rotation, Scale = 1.0f });
         manager.AddComponentObject(entity, new Anim { animator = animator });
         manager.AddComponentData(entity, new Speed { value = speed });
         manager.AddComponent<Input>(entity);
         manager.AddComponent<PreviousVelocity>(entity);
         manager.AddComponent<Velocity>(entity);
-        manager.AddComponentData(entity, new Attack { attackTime = 0.75f, cooldown = 1.5f, range = 2.5f, angle = 360.0f });
+        manager.AddComponentData(entity, new Attack { attackTime = 0.75f, cooldown = 0.75f, range = 2.5f, angle = 360.0f });
 
         var sounds = new FixedList512Bytes<FixedString128Bytes>();
         sounds.Add("Walking0");
@@ -67,6 +99,13 @@ public class Player : MonoBehaviour
         manager.AddComponentData(entity, new PlantableTree { entity = tree, prefab = treePrefab.gameObject, cooldown = 1.0f });
 
         manager.AddComponentData(entity, new Health { health = 3 });
+    }
+
+    private void Awake()
+    {
+        respawnPosition = transform.position;
+
+        BuildEntity();
 
     }
 
@@ -361,7 +400,7 @@ public partial struct InputToAttackSystem : ISystem
         var sounds = SoundManager.Instance;
 
         EntityCommandBuffer cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (look, velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Look>, RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackFX>>().WithNone<Attacking>().WithEntityAccess()) {
+        foreach (var (look, velocity, attack, input, visuals, transform, vfx, entity) in SystemAPI.Query<RefRW<Look>, RefRW<Velocity>, RefRW<Attack>, Input, Anim, LocalToWorld, RefRW<AttackFX>>().WithNone<Attacking, Bouncing>().WithEntityAccess()) {
             var time = attack.ValueRO.time - dt;
             var att = attack.ValueRO;
             
@@ -389,7 +428,7 @@ public partial struct InputToAttackSystem : ISystem
                     look.ValueRW.value = math.normalizesafe(enemies[closest].Position - transform.Position, float3.zero); 
                 }
 
-                attack.ValueRW.time += attack.ValueRO.cooldown;
+                attack.ValueRW.time = attack.ValueRO.cooldown;
                 cmd.AddComponent(entity, new Attacking { time = attack.ValueRO.attackTime, angle = att.angle, range = att.range });
 
                 sounds.PlayOnce("Attack", transform.Position + math.float3(0.0f, 1.0f, 0.0f), transform.Rotation, 1.0f);
@@ -397,7 +436,8 @@ public partial struct InputToAttackSystem : ISystem
                 visuals.animator.SetBool("attack", true);
                 particles.PlayOnce(attackVfx.vfxName.Value, transform.Position + math.float3(0.0f, 1.0f, 0.0f), transform.Rotation);
             }
-            attack.ValueRW.time = math.max(time, 0.0f);
+            attack.ValueRW.time -= dt;
+            attack.ValueRW.time = math.max(attack.ValueRW.time, 0.0f);
         }
         cmd.Playback(state.EntityManager);
     }
@@ -478,7 +518,7 @@ public partial struct KillSystem : ISystem
         var particles = ParticleSystemManager.Instance;
         var sounds = SoundManager.Instance;
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (anim, kill, entity) in SystemAPI.Query<Anim, RefRW<Killed>>().WithAll<Killed>().WithEntityAccess()) {
+        foreach (var (anim, kill, entity) in SystemAPI.Query<Anim, RefRW<Killed>>().WithAll<Killed>().WithNone<Input>().WithEntityAccess()) {
             anim.animator.gameObject.SetActive(false);
             GameObject.DestroyImmediate(anim.animator.gameObject);
         }
@@ -489,7 +529,8 @@ public partial struct KillSystem : ISystem
 
         foreach (var transform in SystemAPI.Query<LocalToWorld>().WithAll<Input, Killed>())
         {
-            particles.PlayOnce("Beaver Death", transform.Position, transform.Rotation);
+            //particles.PlayOnce("Beaver Death", transform.Position, transform.Rotation);
+            sounds.PlayOnce("Beaver Death", transform.Position, transform.Rotation);
         }
 
         foreach (var (dropping, transform,  entity) in SystemAPI.Query<Dropping, LocalToWorld>().WithAll<Killed>().WithEntityAccess()) {
@@ -732,21 +773,48 @@ public partial struct PlayerEnemySyste : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
+        var sounds = SoundManager.Instance;
+        var particles = ParticleSystemManager.Instance;
         var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
-        foreach (var (lhs, health, entity) in SystemAPI.Query<LocalToWorld, RefRW<Health>>().WithAll<Input>().WithEntityAccess()) {
-            foreach (var rhs in SystemAPI.Query<LocalToWorld>().WithAll<WalkingEnemy>()) {
+        foreach (var (lhs, health, entity) in SystemAPI.Query<LocalToWorld, RefRW<Health>>().WithAll<Input>().WithNone<Bouncing>().WithEntityAccess()) {
+            foreach (var (rhs, enemy) in SystemAPI.Query<LocalToWorld>().WithAll<WalkingEnemy>().WithEntityAccess()) {
                 var distance = math.distance(lhs.Position, rhs.Position);
-                if (distance < 0.5f) {
+                if (distance < 1.0f) {
                     health.ValueRW.health = health.ValueRO.health - 1;
                     if (health.ValueRW.health <= 0) {
                         cmd.AddComponent<Killed>(entity);
                     }
-                    var direction = math.normalize(lhs.Position - rhs.Position);
-                    cmd.AddComponent(entity, new Bouncing { fullTime = 0.4f, time = 0.4f, from = rhs.Position, target = rhs.Position - (direction * 15.0f) });
+                    var difference = lhs.Position - rhs.Position;
+                    var direction = math.normalize(math.float3(difference.x, 0.0f, difference.z));
+                    cmd.AddComponent(entity, new Bouncing { fullTime = 0.3f, time = 0.3f, from = lhs.Position, target = lhs.Position + (direction * 4.0f) });
+                    cmd.AddComponent(enemy, new Bouncing { fullTime = 0.4f, time = 0.4f, from = rhs.Position, target = rhs.Position - (direction * 4.0f) });
+
+                    sounds.PlayOnce("Beaver Hit", lhs.Position, lhs.Rotation);
+                    particles.PlayOnce("Impact", lhs.Position + math.float3(0.0f, 1.25f, 0.0f), quaternion.identity);
+                    particles.PlayOnce("LoseHP", lhs.Position + math.float3(0.0f, 0.0f, 0.0f), quaternion.identity);
                     break;
                 }
             }
         }
+        cmd.Playback(state.EntityManager);
+    }
+}
+
+public partial struct BounceSystem : ISystem
+{
+    public void OnCreate(ref SystemState state) { }
+
+    public void OnDestroy(ref SystemState state) { }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var cmd = new EntityCommandBuffer(Allocator.Temp, PlaybackPolicy.SinglePlayback);
+        foreach (var (attackable, bounceable, transform, look, entity) in SystemAPI.Query<Attackable, Bounceable, LocalTransform, Look>().WithNone<Bouncing>().WithEntityAccess()) {
+            if (attackable.JustAttacked) {
+                cmd.AddComponent(entity, new Bouncing { fullTime = 0.4f, time = 0.4f, from = transform.Position, target = transform.Position - (look.value * 15.0f) });
+            }
+        }
+        cmd.Playback(state.EntityManager);
     }
 }
 

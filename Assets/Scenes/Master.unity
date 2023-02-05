@@ -177,6 +177,12 @@ MonoBehaviour:
   - name: Plant
     particleSystem: {fileID: 4772634663558126228, guid: 7ffd49643640bd948b3e696f3c9c78c9,
       type: 3}
+  - name: LoseHP
+    particleSystem: {fileID: 6855314210357232282, guid: 7c2a9b83b809a0848915fabd9596b68b,
+      type: 3}
+  - name: Impact
+    particleSystem: {fileID: 725748389856807712, guid: 4bda94453d2ca7444a0fff05b2d425f5,
+      type: 3}
 --- !u!4 &152196751
 Transform:
   m_ObjectHideFlags: 0
@@ -359,6 +365,10 @@ MonoBehaviour:
     sound: {fileID: 8300000, guid: 4a0d6a00423f0f14eb75a3df4b0a167f, type: 3}
   - name: Plant
     sound: {fileID: 8300000, guid: 657578e4be6b64dbf9b09deada272e55, type: 3}
+  - name: Beaver Hit
+    sound: {fileID: 8300000, guid: 53c3b2edbb5543a468cf105469974ce1, type: 3}
+  - name: Beaver Death
+    sound: {fileID: 8300000, guid: 76891e9d76e30c1469bed1976628442d, type: 3}
 --- !u!4 &323002928
 Transform:
   m_ObjectHideFlags: 0
