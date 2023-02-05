@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Entities;
-using UnityEngine.Rendering.VirtualTexturing;
 using System;
 using UnityEngine.UIElements;
 

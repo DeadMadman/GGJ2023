@@ -6,7 +6,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Scenes;
 using Unity.Transforms;
-using UnityEditor.PackageManager;
 using UnityEngine;
 
 public class Player : MonoBehaviour
